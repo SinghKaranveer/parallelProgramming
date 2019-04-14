@@ -24,7 +24,20 @@
 #include <math.h>
 #include <float.h>
 #include <time.h>
+#include <pthread.h>
 
+typedef struct thread_data_s
+{
+	int tid;
+	float lower_limit;
+	float upper_limit;
+	int num_trapezoids;
+	float base;
+	int num_threads;
+	float b;
+} thread_data_t;
+
+void* integrate(void*);
 double compute_using_pthreads (float, float, int, float, int);
 double compute_gold (float, float, int, float);
 
@@ -96,13 +109,82 @@ compute_gold (float a, float b, int n, float h)
 }  
 
 /* FIXME: Complete this function to perform the trapezoidal rule using pthreads. */
+/*
+ * a = start
+ * b = end
+ * n = number of trapazoids
+ * h = base of trapazoid
+ * num_threads = number of threads
+ */
 double 
 compute_using_pthreads (float a, float b, int n, float h, int num_threads)
 {
+	int i;
 	double integral = 0.0;
-
-    return integral;
+	pthread_t *thread_id = (pthread_t *) malloc (num_threads * sizeof (pthread_t));
+ 	pthread_attr_t attributes;
+   	pthread_attr_init (&attributes);
+	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
+	double *sum_array = (double *) malloc(sizeof(double) * num_threads);
+	int chunk_size = (int) ceil(n*1.0 / num_threads); // Chunk size is how many trapezoids each thread will calculate
+	printf("Chunk size = %i\n", chunk_size);
+	for(i = 0; i < num_threads; i++)
+	{
+		thread_data_array[i].lower_limit = i * chunk_size * h;
+		thread_data_array[i].num_trapezoids = chunk_size;
+		if(i == num_threads - 1)
+		{
+			thread_data_array[i].num_trapezoids = n - chunk_size * (num_threads - 1);
+			printf("trapazoids: %i\n", thread_data_array[i].num_trapezoids);
+			
+		}
+		printf("trapazoids: %i\n", thread_data_array[i].num_trapezoids);
+		thread_data_array[i].base = h;
+		thread_data_array[i].tid = i;
+		thread_data_array[i].num_threads = num_threads;
+		thread_data_array[i].b = b;
+		printf("Starting at: %f\n", thread_data_array[i].lower_limit);
+	} 
+	for(i = 0; i < num_threads; i++)
+	{
+		pthread_create(&thread_id[i], &attributes, integrate, (void *) &thread_data_array[i]);
+	}
+	for (i = 0; i < num_threads; i++)
+	{
+        	pthread_join (thread_id[i], NULL);
+	}
+	free((void *) thread_data_array);
+	return integral;
 }
 
+void* integrate(void *args)
+{
+	thread_data_t *thread_data = (thread_data_t *) args;
+	double integral;
+	int i;
+	float upper_limit;
+	if(thread_data->tid == thread_data->num_threads - 1)
+	{
+		upper_limit = thread_data->b;
+		integral = (f(thread_data->lower_limit) + f(upper_limit))/2.0;
+		
+		for (i = 1; i < thread_data->num_trapezoids; i++)
+     			integral += f(thread_data->lower_limit+i*thread_data->base);
+		
+		integral = integral*thread_data->base;
+		printf("Lower Limit: %f  Upper Limit: %f  Integral: %f\n", thread_data->lower_limit, upper_limit, integral);	
+	}
+	else
+	{
+		upper_limit = thread_data->num_trapezoids * thread_data->base + thread_data->lower_limit;
+		integral = (f(thread_data->lower_limit) + f(upper_limit))/2.0;
 
+		for (i = 1; i < thread_data->num_trapezoids; i++)
+     			integral += f(thread_data->lower_limit+i*thread_data->base);
 
+		integral = integral*thread_data->base;
+		printf("Lower Limit: %f  Upper Limit: %f  Integral: %f\n", thread_data->lower_limit, upper_limit, integral);	
+	}
+  	pthread_exit (NULL);
+	
+}
