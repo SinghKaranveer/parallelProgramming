@@ -27,13 +27,14 @@ typedef struct thread_data_s
 	unsigned int i, j, k;
 	unsigned int num_elements;
 	int num_threads;
+	
 } thread_data_t;
 
 
 /* Function prototypes. */
 extern int compute_gold (float *, unsigned int);
 Matrix allocate_matrix (int, int, int);
-void gauss_eliminate_using_pthreads (Matrix);
+void gauss_eliminate_using_pthreads (Matrix, int);
 int perform_simple_check (const Matrix);
 void print_matrix (const Matrix);
 float get_random_number (int, int);
@@ -92,7 +93,7 @@ main (int argc, char **argv)
   
     /* Perform the Gaussian elimination using pthreads. The resulting upper 
      * triangular matrix should be returned in U_mt */
-    gauss_eliminate_using_pthreads (U_mt);
+    gauss_eliminate_using_pthreads (U_mt,4);
 
     /* check if the pthread result matches the reference solution within a specified tolerance. */
     int size = MATRIX_SIZE * MATRIX_SIZE;
@@ -110,19 +111,19 @@ main (int argc, char **argv)
 
 /* FIXME: Write code to perform gaussian elimination using pthreads. */
 void
-gauss_eliminate_using_pthreads (Matrix U)
+gauss_eliminate_using_pthreads (Matrix U, int num_threads)
 {
 	int i;
 	
-	pthread_t*thread_id = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads); //This allocates the memory needed for the total amount of threads
-	pthread_attr_t attibutes; //
-	pthread_attr_init (&attributes);
+	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
+	pthread_attr_t attributes; //
+	pthread_attr_init (&attributes);
 	printf("Chuck size = %i\n", chunk_size);
 	for(i = 0; i < num_threads; i++)
 	{
 		thread_data_array[i].
-		thread_data_array[i].num_elements = chuck_size
+		thread_data_array[i].num_elements = chuck_size;
 
 		if(i == num_threads - 1)
 		{
@@ -139,7 +140,6 @@ gauss_eliminate_using_pthreads (Matrix U)
 		pthread_join (thread_id[i], NULL);
 	}
 	free((void *) thread_data_array);
-	return 1;
 }
 
 

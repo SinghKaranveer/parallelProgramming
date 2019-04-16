@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <sys/time.h>
 #include <float.h>
 #include <time.h>
 #include <pthread.h>
@@ -34,6 +35,7 @@ typedef struct thread_data_s
 	int num_trapezoids;
 	float base;
 	int num_threads;
+	double* sum_array;
 	float b;
 } thread_data_t;
 
@@ -52,21 +54,29 @@ main (int argc, char **argv)
         printf ("num-threads: Number of threads to use in the calculation\n");
         exit (EXIT_FAILURE);
     }
+	struct timeval start, stop;	
+
 
     float a = atoi (argv[1]); /* Lower limit */
 	float b = atof (argv[2]); /* Upper limit */
 	float n = atof (argv[3]); /* Number of trapezoids */
 
 	float h = (b - a)/(float) n; /* Base of each trapezoid */  
-	printf ("The base of the trapezoid is %f \n", h);
-
+	gettimeofday (&start, NULL);
 	double reference = compute_gold (a, b, n, h);
-    printf ("Reference solution computed using single-threaded version = %f \n", reference);
+	gettimeofday (&stop, NULL);
+    	printf ("Reference solution computed using single-threaded version = %f \n", reference);
+	printf ("Execution time = %fs. \n\n", (float)(stop.tv_sec - start.tv_sec +\
+        	(stop.tv_usec - start.tv_usec)/(float)1000000));
 
 	/* Write this function to complete the trapezoidal rule using pthreads. */
     int num_threads = atoi (argv[4]); /* Number of threads */
+	gettimeofday (&start, NULL);
 	double pthread_result = compute_using_pthreads (a, b, n, h, num_threads);
+	gettimeofday (&stop, NULL);
 	printf ("Solution computed using %d threads = %f \n", num_threads, pthread_result);
+	printf ("Execution time = %fs. \n\n", (float)(stop.tv_sec - start.tv_sec +\
+        	(stop.tv_usec - start.tv_usec)/(float)1000000));
 
     exit(EXIT_SUCCESS);
 } 
@@ -127,7 +137,6 @@ compute_using_pthreads (float a, float b, int n, float h, int num_threads)
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	double *sum_array = (double *) malloc(sizeof(double) * num_threads);
 	int chunk_size = (int) ceil(n*1.0 / num_threads); // Chunk size is how many trapezoids each thread will calculate
-	printf("Chunk size = %i\n", chunk_size);
 	for(i = 0; i < num_threads; i++)
 	{
 		thread_data_array[i].lower_limit = i * chunk_size * h;
@@ -135,15 +144,13 @@ compute_using_pthreads (float a, float b, int n, float h, int num_threads)
 		if(i == num_threads - 1)
 		{
 			thread_data_array[i].num_trapezoids = n - chunk_size * (num_threads - 1);
-			printf("trapazoids: %i\n", thread_data_array[i].num_trapezoids);
 			
 		}
-		printf("trapazoids: %i\n", thread_data_array[i].num_trapezoids);
 		thread_data_array[i].base = h;
 		thread_data_array[i].tid = i;
 		thread_data_array[i].num_threads = num_threads;
+		thread_data_array[i].sum_array = sum_array;
 		thread_data_array[i].b = b;
-		printf("Starting at: %f\n", thread_data_array[i].lower_limit);
 	} 
 	for(i = 0; i < num_threads; i++)
 	{
@@ -153,7 +160,12 @@ compute_using_pthreads (float a, float b, int n, float h, int num_threads)
 	{
         	pthread_join (thread_id[i], NULL);
 	}
+	for (i = 0; i < num_threads; i++)
+	{
+		integral = integral + sum_array[i];
+	}
 	free((void *) thread_data_array);
+	free((void *) sum_array);
 	return integral;
 }
 
@@ -172,7 +184,6 @@ void* integrate(void *args)
      			integral += f(thread_data->lower_limit+i*thread_data->base);
 		
 		integral = integral*thread_data->base;
-		printf("Lower Limit: %f  Upper Limit: %f  Integral: %f\n", thread_data->lower_limit, upper_limit, integral);	
 	}
 	else
 	{
@@ -183,8 +194,8 @@ void* integrate(void *args)
      			integral += f(thread_data->lower_limit+i*thread_data->base);
 
 		integral = integral*thread_data->base;
-		printf("Lower Limit: %f  Upper Limit: %f  Integral: %f\n", thread_data->lower_limit, upper_limit, integral);	
 	}
+	thread_data->sum_array[thread_data->tid] = integral;
   	pthread_exit (NULL);
 	
 }
