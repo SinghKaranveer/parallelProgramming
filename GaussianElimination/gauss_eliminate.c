@@ -19,6 +19,17 @@
 #define MIN_NUMBER 2
 #define MAX_NUMBER 50
 
+typedef struct thread_data_s
+{
+	int tid;
+	Matrix A;
+	Matrix u_mt;
+	unsigned int i, j, k;
+	unsigned int num_elements;
+	int num_threads;
+} thread_data_t;
+
+
 /* Function prototypes. */
 extern int compute_gold (float *, unsigned int);
 Matrix allocate_matrix (int, int, int);
@@ -101,6 +112,34 @@ main (int argc, char **argv)
 void
 gauss_eliminate_using_pthreads (Matrix U)
 {
+	int i;
+	
+	pthread_t*thread_id = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads); //This allocates the memory needed for the total amount of threads
+	pthread_attr_t attibutes; //
+	pthread_attr_init (&attributes);
+	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
+	printf("Chuck size = %i\n", chunk_size);
+	for(i = 0; i < num_threads; i++)
+	{
+		thread_data_array[i].
+		thread_data_array[i].num_elements = chuck_size
+
+		if(i == num_threads - 1)
+		{
+			thread_data_array[i].num_elements = n - chuck_size * (num_threads - 1);
+			// Print feedback here
+		}
+		
+		thread_data_array[i].tid = i;
+		thread_data_array[i].num_threads = num_threads;
+		//Print some more feedback?
+	}
+	for (i = 0; i < num_threads; i++)
+	{
+		pthread_join (thread_id[i], NULL);
+	}
+	free((void *) thread_data_array);
+	return 1;
 }
 
 
