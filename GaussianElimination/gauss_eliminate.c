@@ -14,6 +14,7 @@
 #include <string.h>
 #include <math.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include "gauss_eliminate.h"
 
 #define MIN_NUMBER 2
@@ -22,24 +23,34 @@
 typedef struct thread_data_s
 {
 	int tid;
-	Matrix A;
-	Matrix u_mt;
-	unsigned int i, j, k;
+	int start, end;
+	unsigned int chunk_size;
 	unsigned int num_elements;
 	int num_threads;
+	float* U;
 	
 } thread_data_t;
 
+/* Structure that defines the barrier. */
+typedef struct barrier_s {
+    sem_t counter_sem;          /* Protects access to the counter. */
+    sem_t barrier_sem;          /* Signals that barrier is safe to cross. */
+    int counter;                /* The value itself. */
+} barrier_t;
+
+barrier_t barrier;
+
 
 /* Function prototypes. */
+void* gaussian(void*);
 extern int compute_gold (float *, unsigned int);
 Matrix allocate_matrix (int, int, int);
-void gauss_eliminate_using_pthreads (Matrix, int);
+void gauss_eliminate_using_pthreads (Matrix, int, unsigned int);
 int perform_simple_check (const Matrix);
 void print_matrix (const Matrix);
 float get_random_number (int, int);
 int check_results (float *, float *, unsigned int, float);
-
+void barrier_sync (barrier_t *, int, int);
 
 int
 main (int argc, char **argv)
@@ -53,7 +64,6 @@ main (int argc, char **argv)
     Matrix A;			    /* Input matrix. */
     Matrix U_reference;		/* Upper triangular matrix computed by reference code. */
     Matrix U_mt;			/* Upper triangular matrix computed by pthreads. */
-
     /* Initialize the random number generator with a seed value. */
     srand (time (NULL));
 
@@ -74,6 +84,7 @@ main (int argc, char **argv)
     gettimeofday (&start, NULL);
     
     int status = compute_gold (U_reference.elements, A.num_rows);
+    
   
     gettimeofday (&stop, NULL);
     printf ("CPU run time = %0.2f s.\n", (float) (stop.tv_sec - start.tv_sec +\
@@ -90,10 +101,11 @@ main (int argc, char **argv)
         exit (EXIT_FAILURE);
     }
     printf ("Single-threaded Gaussian elimination was successful.\n");
-  
+    
+    
     /* Perform the Gaussian elimination using pthreads. The resulting upper 
      * triangular matrix should be returned in U_mt */
-    gauss_eliminate_using_pthreads (U_mt,4);
+    gauss_eliminate_using_pthreads (U_mt,4, A.num_rows);
 
     /* check if the pthread result matches the reference solution within a specified tolerance. */
     int size = MATRIX_SIZE * MATRIX_SIZE;
@@ -111,38 +123,82 @@ main (int argc, char **argv)
 
 /* FIXME: Write code to perform gaussian elimination using pthreads. */
 void
-gauss_eliminate_using_pthreads (Matrix U, int num_threads)
+gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elements)
 {
 	int i;
-	
 	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	pthread_attr_t attributes; //
 	pthread_attr_init (&attributes);
-	printf("Chuck size = %i\n", chunk_size);
+	int chunk_size = (int) floor(MATRIX_SIZE / num_threads); //chunk_size is how many rows to do
+	barrier.counter = 0;
+        sem_init (&barrier.counter_sem, 0, 1); /* Initialize the semaphore protecting the counter to unlocked. */
+	sem_init (&barrier.barrier_sem, 0, 0); /* Initialize the semaphore protecting the barrier to locked. */
+
+	printf("Chunk_size=%i\n",chunk_size);
 	for(i = 0; i < num_threads; i++)
 	{
-		thread_data_array[i].
-		thread_data_array[i].num_elements = chuck_size;
-
-		if(i == num_threads - 1)
-		{
-			thread_data_array[i].num_elements = n - chuck_size * (num_threads - 1);
-			// Print feedback here
-		}
-		
 		thread_data_array[i].tid = i;
+		thread_data_array[i].chunk_size = chunk_size;
+		thread_data_array[i].num_elements = num_elements;
+		thread_data_array[i].U = U.elements;
+		thread_data_array[i].start = i * chunk_size;
+		thread_data_array[i].end = (i * chunk_size) + chunk_size;
 		thread_data_array[i].num_threads = num_threads;
-		//Print some more feedback?
 	}
-	for (i = 0; i < num_threads; i++)
+	for(i = 0; i < num_threads; i++)
+	{
+		pthread_create(&thread_id[i], &attributes, gaussian, (void *) &thread_data_array[i]);
+	}
+	for(i = 0; i < num_threads; i++)
 	{
 		pthread_join (thread_id[i], NULL);
 	}
+	printf("FIRST 512 IN MT\n");
+	for(i=0;i < 512*512; i++)
+	{
+		printf("%i  =  %f\n",i,U.elements[i]);
+	}
 	free((void *) thread_data_array);
+	free((void *) thread_id);
 }
 
+void* gaussian(void* args)
+{
+	thread_data_t *thread_data = (thread_data_t *) args;
+	int chunk_size = thread_data->chunk_size;
+	int tid = thread_data->tid;
+	int num_elements = thread_data->num_elements;
+	float* U = thread_data->U;
+	int end = thread_data->end;
+	int start = thread_data->start;
+	int k,j,i;
+	//n = chunk_size*tid*num_elements;//tid + 1;
+	printf("TID=%i START=%i END=%i\n",tid, start, end);
+		
+	for(k = start; k < end; k++)
+	{
+		for(j = (k + 1); j < num_elements; j++)
+		{
+			U[num_elements * k + j] = (float) (U[num_elements * k + j] / U[num_elements * k + k]);
+		}
+		U[num_elements * k + k] = 1;
+	}
 
+        barrier_sync (&barrier, tid, thread_data->num_threads); /* Wait here for all threads to catch up before starting the next iteration. */
+	for(k = start; k < end; k++)
+	{
+		for(i = (k+1); i < num_elements; i++)
+		{
+			for (j = (k + 1); j < num_elements; j++)
+				U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
+			U[num_elements * i + k] = 0;
+		}
+	}
+		
+	printf("TID=%i is done\n", tid);
+	pthread_exit (NULL);
+}
 /* Function checks if the results generated by the single threaded and multi threaded versions match. */
 int
 check_results (float *A, float *B, unsigned int size, float tolerance)
@@ -196,4 +252,26 @@ perform_simple_check (const Matrix M)
             return 0;
   
     return 1;
+}
+
+void 
+barrier_sync(barrier_t *barrier, int tid, int num_threads)
+{
+    sem_wait (&(barrier->counter_sem));
+
+    /* Check if all threads before us, that is num_threads - 1 threads have reached this point. */	  
+    if (barrier->counter == (num_threads - 1)) {
+        barrier->counter = 0; /* Reset the counter. */
+        sem_post (&(barrier->counter_sem)); 
+					 
+        /* Signal the blocked threads that it is now safe to cross the barrier. */
+        printf ("Thread number %d is signalling other threads to proceed\n", tid); 
+        for (int i = 0; i < (num_threads - 1); i++)
+            sem_post (&(barrier->barrier_sem));
+    } 
+    else {
+        barrier->counter++;
+        sem_post (&(barrier->counter_sem));
+        sem_wait (&(barrier->barrier_sem)); /* Block on the barrier semaphore. */
+    }
 }

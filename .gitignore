@@ -1,3 +1,5 @@
 *.o
+output
+*.log
 *.out
 *.backup
