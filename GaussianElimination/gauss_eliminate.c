@@ -39,6 +39,7 @@ typedef struct barrier_s {
 } barrier_t;
 
 barrier_t barrier;
+barrier_t barrier2;
 pthread_mutex_t lock;
 
 /* Function prototypes. */
@@ -134,6 +135,11 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 	barrier.counter = 0;
         sem_init (&barrier.counter_sem, 0, 1); /* Initialize the semaphore protecting the counter to unlocked. */
 	sem_init (&barrier.barrier_sem, 0, 0); /* Initialize the semaphore protecting the barrier to locked. */
+	printf("BEFORE\n");
+	for(i=0;i < num_elements * num_elements; i++)
+	{
+		//printf("%i  =  %f\n",i,U.elements[i]);
+	}
 
 	printf("Chunk_size=%i\n",chunk_size);
 	for(i = 0; i < num_threads; i++)
@@ -155,7 +161,7 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 		pthread_join (thread_id[i], NULL);
 	}
 	printf("FIRST 512 IN MT\n");
-	for(i=0;i < 512*512; i++)
+	for(i=0;i < num_elements * num_elements; i++)
 	{
 		printf("%i  =  %f\n",i,U.elements[i]);
 	}
@@ -166,7 +172,7 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 void* gaussian(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
-	int chunk_size = thread_data->chunk_size;
+	//int chunk_size = thread_data->chunk_size;
 	int tid = thread_data->tid;
 	int num_elements = thread_data->num_elements;
 	float* U = thread_data->U;
@@ -175,25 +181,38 @@ void* gaussian(void* args)
 	int k,j,i;
 	//n = chunk_size*tid*num_elements;//tid + 1;
 	printf("TID=%i START=%i END=%i\n",tid, start, end);
-		
 	for(k = start; k < end; k++)
 	{
+        	//pthread_mutex_lock(&lock);
 		for(j = (k + 1); j < num_elements; j++)
 		{
 			U[num_elements * k + j] = (float) (U[num_elements * k + j] / U[num_elements * k + k]);
 		}
 		U[num_elements * k + k] = 1;
+        	//barrier_sync (&barrier, tid, thread_data->num_threads); 
+	//	for(i = (k+1); i < num_elements; i++)
+	//	{	
+	//		for(j=k+1; j < num_elements; j++)
+	//		{
+	//			U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
+	//		//	printf("Thread=%i k=%i, i=%i j=%i\n",tid, k, i, j); 
+	//		}
+	//		U[num_elements*i+k] = 0;
+	//	}
+        //	pthread_mutex_unlock(&lock);
 	}
 
         barrier_sync (&barrier, tid, thread_data->num_threads); /* Wait here for all threads to catch up before starting the next iteration. */
-	for(k = start; k < end; k++)
+	for(k = start; k < num_elements; k++)
 	{
-		for(i = (k+1); i < num_elements; i++)
+        	pthread_mutex_lock(&lock);
+		for(i = (k + 1); i < num_elements; i++)
 		{
 			for (j = (k + 1); j < num_elements; j++)
 				U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
 			U[num_elements * i + k] = 0;
 		}
+        	pthread_mutex_unlock(&lock);
 	}
 		
 	printf("TID=%i is done\n", tid);
