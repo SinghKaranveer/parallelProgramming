@@ -106,7 +106,6 @@ main (int argc, char **argv)
     }
     printf ("Single-threaded Gaussian elimination was successful.\n");
     
-    
     gettimeofday (&start, NULL);
     /* Perform the Gaussian elimination using pthreads. The resulting upper 
      * triangular matrix should be returned in U_mt */
@@ -133,30 +132,28 @@ main (int argc, char **argv)
 void
 gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elements)
 {
-	int i, j, k;
+	int i, k;
 	
 	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	pthread_attr_t attributes; //
 	pthread_attr_init (&attributes);
-	int chunk_size = (int) floor(MATRIX_SIZE / num_threads); //chunk_size is how many rows to do
+	//int chunk_size = (int) floor(MATRIX_SIZE / num_threads); //chunk_size is how many rows to do
 	barrier.counter = 0;
         sem_init (&barrier.counter_sem, 0, 1); /* Initialize the semaphore protecting the counter to unlocked. */
 	sem_init (&barrier.barrier_sem, 0, 0); /* Initialize the semaphore protecting the barrier to locked. */
-	sem_init(&sem, 0, 0);
-	printf("BEFORE\n");
+	//sem_init(&sem, 0, 0);
 
-	printf("Chunk_size=%i\n",chunk_size);
 	for( k = 0; k < num_elements; k++)
 	{
 		for(i = 0; i < num_threads; i++)
 		{
 			thread_data_array[i].tid = i;
-			thread_data_array[i].chunk_size = chunk_size;
+			//thread_data_array[i].chunk_size = chunk_size;
 			thread_data_array[i].num_elements = num_elements;
 			thread_data_array[i].U = U.elements;
-			thread_data_array[i].start = k + i;
-			thread_data_array[i].end = (i * chunk_size) + chunk_size;
+			//thread_data_array[i].start = k + i;
+			//thread_data_array[i].end = (i * chunk_size) + chunk_size;
 			thread_data_array[i].num_threads = num_threads;
 			thread_data_array[i].k = k;
 			thread_data_array[i].divisor = U.elements[num_elements*k+k];
@@ -170,7 +167,6 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 			pthread_join (thread_id[i], NULL);
 		}
 	}
-	printf("FIRST 512 IN MT\n");
 	for(i=0;i < num_elements * num_elements; i++)
 	{
 	//	printf("%i  =  %f\n",i,U.elements[i]);
@@ -181,36 +177,35 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 
 void* gaussian(void* args)
 {
-	int k,j,i, value;
+	int k,j,i, row;
 	thread_data_t *thread_data = (thread_data_t *) args;
 	//int chunk_size = thread_data->chunk_size;
 	int tid = thread_data->tid;
 	int num_elements = thread_data->num_elements;
 	float* U = thread_data->U;
-	int end = thread_data->end;
-	int start = thread_data->start;
+	//int end = thread_data->end;
+	//int start = thread_data->start;
 	k = thread_data->k;
-	int num_threads = thread_data->num_threads;
+	int stride = thread_data->num_threads;
 	float divisor = thread_data->divisor;
-	//n = chunk_size*tid*num_elements;//tid + 1;
-	//printf("TID=%i START=%i END=%i\n",tid, start, end);
-	for(j = k+1+tid; j < num_elements; j = j + num_threads)
+	for(j = k+1+tid; j < num_elements; j = j + stride)
 	{	
 		U[num_elements * k + j] = (float) (U[num_elements * k + j] / divisor);	
-	//	if(j == num_elements - 1)
+		if(j == num_elements - 1)
 			U[num_elements * k + k] = 1;
 	//	printf("TID=%i j=%i k=%i\n",tid, j, k);
 	}
-	barrier_sync (&barrier, tid, thread_data->num_threads);
+	barrier_sync (&barrier, tid, stride);
 	if(k == num_elements - 1)
 		U[num_elements * k + k] = 1;
-	for(i = k + 1 + tid; i < num_elements; i = i + num_threads)
+	for(i = k + 1 + tid; i < num_elements; i = i + stride)
 	{
+		row = num_elements * i;
 		for(j = k + 1; j < num_elements; j++)
 		{
-			U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
+			U[row + j] = U[row + j] - (U[row + k] * U[num_elements * k + j]);
 		}
-		U[num_elements * i + k] = 0;
+		U[row + k] = 0;
 
 	}
 
