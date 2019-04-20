@@ -39,7 +39,7 @@ typedef struct barrier_s {
 } barrier_t;
 
 barrier_t barrier;
-
+pthread_mutex_t lock;
 
 /* Function prototypes. */
 void* gaussian(void*);
