@@ -30,7 +30,7 @@ compute_gold (float *U, unsigned int num_elements)
 	printf("FIRST 512 IN GOLD\n");
 	for(i=0;i < num_elements*num_elements; i++)
 	{
-		printf("%i  =  %f\n",i,U[i]);
+	//	printf("%i  =  %f\n",i,U[i]);
 	}
     
     return 1;

@@ -28,6 +28,8 @@ typedef struct thread_data_s
 	unsigned int num_elements;
 	int num_threads;
 	float* U;
+	int k;
+	float divisor;
 	
 } thread_data_t;
 
@@ -38,6 +40,7 @@ typedef struct barrier_s {
     int counter;                /* The value itself. */
 } barrier_t;
 
+sem_t sem;
 barrier_t barrier;
 barrier_t barrier2;
 pthread_mutex_t lock;
@@ -88,7 +91,7 @@ main (int argc, char **argv)
     
   
     gettimeofday (&stop, NULL);
-    printf ("CPU run time = %0.2f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+    printf ("CPU run time = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec) / (float) 1000000));
 
     if (status == 0) {
@@ -104,10 +107,14 @@ main (int argc, char **argv)
     printf ("Single-threaded Gaussian elimination was successful.\n");
     
     
+    gettimeofday (&start, NULL);
     /* Perform the Gaussian elimination using pthreads. The resulting upper 
      * triangular matrix should be returned in U_mt */
     gauss_eliminate_using_pthreads (U_mt,4, A.num_rows);
 
+    gettimeofday (&stop, NULL);
+    printf ("CPU run time (MT) = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec) / (float) 1000000));
     /* check if the pthread result matches the reference solution within a specified tolerance. */
     int size = MATRIX_SIZE * MATRIX_SIZE;
     int res = check_results (U_reference.elements, U_mt.elements, size, 0.0001f);
@@ -126,7 +133,8 @@ main (int argc, char **argv)
 void
 gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elements)
 {
-	int i;
+	int i, j, k;
+	
 	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	pthread_attr_t attributes; //
@@ -135,35 +143,37 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 	barrier.counter = 0;
         sem_init (&barrier.counter_sem, 0, 1); /* Initialize the semaphore protecting the counter to unlocked. */
 	sem_init (&barrier.barrier_sem, 0, 0); /* Initialize the semaphore protecting the barrier to locked. */
+	sem_init(&sem, 0, 0);
 	printf("BEFORE\n");
-	for(i=0;i < num_elements * num_elements; i++)
-	{
-		//printf("%i  =  %f\n",i,U.elements[i]);
-	}
 
 	printf("Chunk_size=%i\n",chunk_size);
-	for(i = 0; i < num_threads; i++)
+	for( k = 0; k < num_elements; k++)
 	{
-		thread_data_array[i].tid = i;
-		thread_data_array[i].chunk_size = chunk_size;
-		thread_data_array[i].num_elements = num_elements;
-		thread_data_array[i].U = U.elements;
-		thread_data_array[i].start = i * chunk_size;
-		thread_data_array[i].end = (i * chunk_size) + chunk_size;
-		thread_data_array[i].num_threads = num_threads;
-	}
-	for(i = 0; i < num_threads; i++)
-	{
-		pthread_create(&thread_id[i], &attributes, gaussian, (void *) &thread_data_array[i]);
-	}
-	for(i = 0; i < num_threads; i++)
-	{
-		pthread_join (thread_id[i], NULL);
+		for(i = 0; i < num_threads; i++)
+		{
+			thread_data_array[i].tid = i;
+			thread_data_array[i].chunk_size = chunk_size;
+			thread_data_array[i].num_elements = num_elements;
+			thread_data_array[i].U = U.elements;
+			thread_data_array[i].start = k + i;
+			thread_data_array[i].end = (i * chunk_size) + chunk_size;
+			thread_data_array[i].num_threads = num_threads;
+			thread_data_array[i].k = k;
+			thread_data_array[i].divisor = U.elements[num_elements*k+k];
+		}
+		for(i = 0; i < num_threads; i++)
+		{
+			pthread_create(&thread_id[i], &attributes, gaussian, (void *) &thread_data_array[i]);
+		}
+		for(i = 0; i < num_threads; i++)
+		{
+			pthread_join (thread_id[i], NULL);
+		}
 	}
 	printf("FIRST 512 IN MT\n");
 	for(i=0;i < num_elements * num_elements; i++)
 	{
-		printf("%i  =  %f\n",i,U.elements[i]);
+	//	printf("%i  =  %f\n",i,U.elements[i]);
 	}
 	free((void *) thread_data_array);
 	free((void *) thread_id);
@@ -171,6 +181,7 @@ gauss_eliminate_using_pthreads (Matrix U, int num_threads, unsigned int num_elem
 
 void* gaussian(void* args)
 {
+	int k,j,i, value;
 	thread_data_t *thread_data = (thread_data_t *) args;
 	//int chunk_size = thread_data->chunk_size;
 	int tid = thread_data->tid;
@@ -178,44 +189,31 @@ void* gaussian(void* args)
 	float* U = thread_data->U;
 	int end = thread_data->end;
 	int start = thread_data->start;
-	int k,j,i;
+	k = thread_data->k;
+	int num_threads = thread_data->num_threads;
+	float divisor = thread_data->divisor;
 	//n = chunk_size*tid*num_elements;//tid + 1;
-	printf("TID=%i START=%i END=%i\n",tid, start, end);
-	for(k = start; k < end; k++)
-	{
-        	//pthread_mutex_lock(&lock);
-		for(j = (k + 1); j < num_elements; j++)
-		{
-			U[num_elements * k + j] = (float) (U[num_elements * k + j] / U[num_elements * k + k]);
-		}
+	//printf("TID=%i START=%i END=%i\n",tid, start, end);
+	for(j = k+1+tid; j < num_elements; j = j + num_threads)
+	{	
+		U[num_elements * k + j] = (float) (U[num_elements * k + j] / divisor);	
+	//	if(j == num_elements - 1)
+			U[num_elements * k + k] = 1;
+	//	printf("TID=%i j=%i k=%i\n",tid, j, k);
+	}
+	barrier_sync (&barrier, tid, thread_data->num_threads);
+	if(k == num_elements - 1)
 		U[num_elements * k + k] = 1;
-        	//barrier_sync (&barrier, tid, thread_data->num_threads); 
-	//	for(i = (k+1); i < num_elements; i++)
-	//	{	
-	//		for(j=k+1; j < num_elements; j++)
-	//		{
-	//			U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
-	//		//	printf("Thread=%i k=%i, i=%i j=%i\n",tid, k, i, j); 
-	//		}
-	//		U[num_elements*i+k] = 0;
-	//	}
-        //	pthread_mutex_unlock(&lock);
+	for(i = k + 1 + tid; i < num_elements; i = i + num_threads)
+	{
+		for(j = k + 1; j < num_elements; j++)
+		{
+			U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
+		}
+		U[num_elements * i + k] = 0;
+
 	}
 
-        barrier_sync (&barrier, tid, thread_data->num_threads); /* Wait here for all threads to catch up before starting the next iteration. */
-	for(k = start; k < num_elements; k++)
-	{
-        	pthread_mutex_lock(&lock);
-		for(i = (k + 1); i < num_elements; i++)
-		{
-			for (j = (k + 1); j < num_elements; j++)
-				U[num_elements * i + j] = U[num_elements * i + j] - (U[num_elements * i + k] * U[num_elements * k + j]);
-			U[num_elements * i + k] = 0;
-		}
-        	pthread_mutex_unlock(&lock);
-	}
-		
-	printf("TID=%i is done\n", tid);
 	pthread_exit (NULL);
 }
 /* Function checks if the results generated by the single threaded and multi threaded versions match. */
@@ -284,7 +282,7 @@ barrier_sync(barrier_t *barrier, int tid, int num_threads)
         sem_post (&(barrier->counter_sem)); 
 					 
         /* Signal the blocked threads that it is now safe to cross the barrier. */
-        printf ("Thread number %d is signalling other threads to proceed\n", tid); 
+        //printf ("Thread number %d is signalling other threads to proceed\n", tid); 
         for (int i = 0; i < (num_threads - 1); i++)
             sem_post (&(barrier->barrier_sem));
     } 
