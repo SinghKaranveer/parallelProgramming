@@ -19,6 +19,7 @@
 #include "grid.h" 
 
 extern int compute_gold (grid_t *);
+void* jacobi(void*);
 int compute_using_pthreads_jacobi (grid_t *, int);
 void compute_grid_differences(grid_t *, grid_t *);
 grid_t *create_grid (int, float, float);
@@ -33,11 +34,11 @@ typedef struct thread_data_s
 	unsigned int chunk_size;
 	unsigned int num_elements;
 	int num_threads;
-	float* grid;
-	int i, j;
+	float* G;
+	int i, j, k;
 	double diff;
 	float old, new; 
-	int num_iter = 0;
+	int num_iter;
 } thread_data_t;
 
 int 
@@ -98,27 +99,20 @@ main (int argc, char **argv)
 
 /* FIXME: Edit this function to use the jacobi method of solving the equation. The final result should be placed in the grid data structure. */
 int 
-compute_using_pthreads_jacobi (grid_t *grid, int num_threads, unsigned int num_elements)
+compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 {		
-    int i, j;
+    int i, j, k;
 	
 	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	pthread_attr_t attributes; //
 	pthread_attr_init (&attributes);
-	//int chunk_size = (int) floor(MATRIX_SIZE / num_threads); //chunk_size is how many rows to do
-	barrier.counter = 0;
-        sem_init (&barrier.counter_sem, 0, 1); /* Initialize the semaphore protecting the counter to unlocked. */
-	sem_init (&barrier.barrier_sem, 0, 0); /* Initialize the semaphore protecting the barrier to locked. */
-	//sem_init(&sem, 0, 0);
 
 	for(i = 0; i < num_threads; i++)
 	{
-		thread_data_array[i].num_iter = num_iter;
-		thread_data_array[i].diff = diff;
-		thread_data_array[i].old = old;
-		thread_data_array[i].new = new;
+		thread_data_array[i].num_iter = 0;
 		thread_data_array[i].tid = i;
+		//thread_data_array[i].G = G->elements;
 		thread_data_array[i].num_threads = num_threads;
 	} 
 	for(i = 0; i < num_threads; i++)
@@ -133,40 +127,40 @@ compute_using_pthreads_jacobi (grid_t *grid, int num_threads, unsigned int num_e
 	free((void *) thread_id);
 }
 
-void* jacobi(void* args)
+void* jacobi(void *args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
+	int i, j, k;
 	int tid = thread_data->tid;
 	int num_elements = thread_data->num_elements;
-	float* grid = thread_data->grid;
+	grid_t* G = thread_data->G;
 	k = thread_data->k;
 	
 	int num_iter = 0;
 	int done = 0;
-    int i, j;
+    	
 	double diff;
 	float old, new; 
-    float eps = 1e-2; /* Convergence criteria. */
-    int num_elements; 
+    	float eps = 1e-2; /* Convergence criteria. */ 
 	
 	while(!done) { /* While we have not converged yet. */
         diff = 0.0;
         num_elements = 0;
-
-        for (i = 1; i < (grid->dim - 1); i++) {
-            for (j = 1; j < (grid->dim - 1); j++) {
-                old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
-                /* Apply the update rule. */	
-                new = 0.25 * (grid->element[(i - 1) * grid->dim + j] +\
-                              grid->element[(i + 1) * grid->dim + j] +\
-                              grid->element[i * grid->dim + (j + 1)] +\
-                              grid->element[i * grid->dim + (j - 1)]);
-
-                grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
-                diff = diff + fabs(new - old); /* Calculate the difference in values. */
-                num_elements++;
-            }
-        }
+	for (k = 1; k <	num_elements; k++){
+        	for (i = 1; i < (G->dim - 1); i++) {
+           		for (j = 1; j < (G->dim - 1); j++) {	
+                		
+				new = 0.25 * (G->element[(i - 1) * G->dim + j] +\
+                              		G->element[(i + 1) * G->dim + j] +\
+                              		G->element[i * G->dim + (j + 1)] +\
+                              		G->element[i * G->dim + (j - 1)]);
+                		
+				G->element[i * G->dim + j] = new; /* Update the grid-point value. */
+                		diff = diff + fabs(new - old); /* Calculate the difference in values. */
+                		num_elements++;
+            		}
+        	}
+	}
 		
         /* End of an iteration. Check for convergence. */
         diff = diff/num_elements;
@@ -297,24 +291,3 @@ grid_mse (grid_t *grid_1, grid_t *grid_2)
     return mse/num_elem; 
 }
 
-void 
-barrier_sync(barrier_t *barrier, int tid, int num_threads)
-{
-    sem_wait (&(barrier->counter_sem));
-
-    /* Check if all threads before us, that is num_threads - 1 threads have reached this point. */	  
-    if (barrier->counter == (num_threads - 1)) {
-        barrier->counter = 0; /* Reset the counter. */
-        sem_post (&(barrier->counter_sem)); 
-					 
-        /* Signal the blocked threads that it is now safe to cross the barrier. */
-        //printf ("Thread number %d is signalling other threads to proceed\n", tid); 
-        for (int i = 0; i < (num_threads - 1); i++)
-            sem_post (&(barrier->barrier_sem));
-    } 
-    else {
-        barrier->counter++;
-        sem_post (&(barrier->counter_sem));
-        sem_wait (&(barrier->barrier_sem)); /* Block on the barrier semaphore. */
-    }
-}
