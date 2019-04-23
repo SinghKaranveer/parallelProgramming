@@ -39,6 +39,7 @@ typedef struct thread_data_s
 	double diff;
 	float old, new; 
 	int num_iter;
+	int start, end;
 } thread_data_t;
 
 int 
@@ -107,13 +108,20 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
 	pthread_attr_t attributes; //
 	pthread_attr_init (&attributes);
+	int chunk_size = (int) floor(G->dim / num_threads); //chunk_size is how many rows to do
+	
+	printf("Chunk_size=%i\n",chunk_size);	
 
 	for(i = 0; i < num_threads; i++)
 	{
 		thread_data_array[i].num_iter = 0;
 		thread_data_array[i].tid = i;
+		thread_data_array[i].chunk_size = chunk_size;
 		//thread_data_array[i].G = G->elements;
 		thread_data_array[i].num_threads = num_threads;
+		thread_data_array[i].start = i * chunk_size;
+		thread_data_array[i].end = (i * chunk_size) + chunk_size;
+		
 	} 
 	for(i = 0; i < num_threads; i++)
 	{
@@ -127,9 +135,10 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 	free((void *) thread_id);
 }
 
-void* jacobi(void *args)
+void* jacobi(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
+	int chunk_size = thread_data->chunk_size;
 	int i, j, k;
 	int tid = thread_data->tid;
 	int num_elements = thread_data->num_elements;
@@ -143,13 +152,21 @@ void* jacobi(void *args)
 	float old, new; 
     	float eps = 1e-2; /* Convergence criteria. */ 
 	
+	int end = thread_data->end;
+	int start = thread_data->start;
+	printf("TID=%i START=%i END=%i\n",tid, start, end);
+
 	while(!done) { /* While we have not converged yet. */
         diff = 0.0;
         num_elements = 0;
-	for (k = 1; k <	num_elements; k++){
-        	for (i = 1; i < (G->dim - 1); i++) {
-           		for (j = 1; j < (G->dim - 1); j++) {	
-                		
+	for (k = start; k < end; k++){
+			printf("TID=%i K=%i\n",tid, k);        
+	for (i = (k); i < (G->dim - 1); i++) { // Not +1 because the formula calls for k to be minused by 1
+			printf("TID=%i K=%i i=%i\n",tid, k, i);
+           		for (j = (k); j < (G->dim - 1); j++) {	
+                		printf("TID=%i K=%i i=%i j=%i\n",tid, k, i, j);
+				old = G->element[i * G->dim + j]; /* Store old value of grid point. */
+		
 				new = 0.25 * (G->element[(i - 1) * G->dim + j] +\
                               		G->element[(i + 1) * G->dim + j] +\
                               		G->element[i * G->dim + (j + 1)] +\
@@ -161,7 +178,8 @@ void* jacobi(void *args)
             		}
         	}
 	}
-		
+	
+	printf("TID=%i is done\n", tid);	
         /* End of an iteration. Check for convergence. */
         diff = diff/num_elements;
         printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
@@ -171,7 +189,7 @@ void* jacobi(void *args)
             done = 1;
 	}
 	pthread_exit (NULL);
-    //return num_iter;
+   	return num_iter;
 	
 	
 	
