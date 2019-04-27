@@ -15,8 +15,29 @@
 #include <time.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <semaphore.h>
+#include <sys/time.h>
 #include <math.h>
 #include "grid.h" 
+
+typedef struct thread_data_s
+{
+	int tid;
+	double* sum_array;
+	unsigned int chunk_size;
+	int num_threads;
+	grid_t* G;
+	double diff;
+	float old, new; 
+	int num_iter;
+	int start, end;
+} thread_data_t;
+
+typedef struct barrier_s {
+    sem_t counter_sem;          /* Protects access to the counter. */
+    sem_t barrier_sem;          /* Signals that barrier is safe to cross. */
+    int counter;                /* The value itself. */
+} barrier_t;
 
 extern int compute_gold (grid_t *);
 void* jacobi(void*);
@@ -27,20 +48,7 @@ grid_t *copy_grid (grid_t *);
 void print_grid (grid_t *);
 void print_stats (grid_t *);
 double grid_mse (grid_t *, grid_t *);
-
-typedef struct thread_data_s
-{
-	int tid;
-	unsigned int chunk_size;
-	unsigned int num_elements;
-	int num_threads;
-	float* G;
-	int i, j, k;
-	double diff;
-	float old, new; 
-	int num_iter;
-	int start, end;
-} thread_data_t;
+void barrier_sync (barrier_t *, int, int);
 
 int 
 main (int argc, char **argv)
@@ -66,7 +74,14 @@ main (int argc, char **argv)
 
 	/* Compute the reference solution using the single-threaded version. */
 	printf ("\nUsing the single threaded version to solve the grid\n");
+	struct timeval start, stop;
+
+    gettimeofday (&start, NULL);
 	int num_iter = compute_gold (grid_1);
+	gettimeofday (&stop, NULL);
+
+	printf ("CPU run time = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec) / (float) 1000000));
 	printf ("Convergence achieved after %d iterations\n", num_iter);
     /* Print key statistics for the converged values. */
 	printf ("Printing statistics for the interior grid points\n");
@@ -77,7 +92,13 @@ main (int argc, char **argv)
 	
 	/* Use pthreads to solve the equation using the jacobi method. */
 	printf ("\nUsing pthreads to solve the grid using the jacobi method\n");
+
+    gettimeofday (&start, NULL);
 	num_iter = compute_using_pthreads_jacobi (grid_2, num_threads);
+	gettimeofday (&stop, NULL);
+	printf ("CPU run time (MT) = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec) / (float) 1000000));
+
 	printf ("Convergence achieved after %d iterations\n", num_iter);			
     printf ("Printing statistics for the interior grid points\n");
 	print_stats (grid_2);
@@ -102,99 +123,107 @@ main (int argc, char **argv)
 int 
 compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 {		
-    int i, j, k;
-	
+    int i;
 	pthread_t* thread_id = (pthread_t *) malloc(sizeof(pthread_t) * num_threads); //This allocates the memory needed for the total amount of threads
 	thread_data_t *thread_data_array = (thread_data_t *) malloc(sizeof(thread_data_t) * num_threads);
+	double *sum_array = (double *) malloc(sizeof(double) * num_threads);
 	pthread_attr_t attributes; //
 	pthread_attr_init (&attributes);
+	int done = 0;
+	double total_sum;
+	int num_elements = G->dim - 2;
+	int num_iter = 0;
+	float eps = 1e-2; /* Convergence criteria. */ 
 	int chunk_size = (int) floor(G->dim / num_threads); //chunk_size is how many rows to do
 	
-	printf("Chunk_size=%i\n",chunk_size);	
-
-	for(i = 0; i < num_threads; i++)
+	while(!done)
 	{
-		thread_data_array[i].num_iter = 0;
-		thread_data_array[i].tid = i;
-		thread_data_array[i].chunk_size = chunk_size;
-		//thread_data_array[i].G = G->elements;
-		thread_data_array[i].num_threads = num_threads;
-		thread_data_array[i].start = i * chunk_size;
-		thread_data_array[i].end = (i * chunk_size) + chunk_size;
+		total_sum = 0.0;
 		
-	} 
-	for(i = 0; i < num_threads; i++)
-	{
-		pthread_create(&thread_id[i], &attributes, jacobi, (void *) &thread_data_array[i]);
-	}
-	for (i = 0; i < num_threads; i++)
-	{
-        	pthread_join (thread_id[i], NULL);
+		for(i = 0; i < num_threads; i++)
+		{
+			thread_data_array[i].num_iter = 0;
+			thread_data_array[i].tid = i;
+			thread_data_array[i].chunk_size = chunk_size;
+			thread_data_array[i].G = G;
+			thread_data_array[i].num_threads = num_threads;
+			thread_data_array[i].start = i * chunk_size;
+			thread_data_array[i].end = (i * chunk_size) + chunk_size;
+			thread_data_array[i].sum_array = sum_array;
+
+		} 
+		for(i = 0; i < num_threads; i++)
+		{
+			pthread_create(&thread_id[i], &attributes, jacobi, (void *) &thread_data_array[i]);
+		}
+		for (i = 0; i < num_threads; i++)
+		{
+	        	pthread_join (thread_id[i], NULL);
+		}
+		for(i = 0; i < num_threads; i++)
+		{
+			total_sum = total_sum + sum_array[i];
+		}
+		total_sum = total_sum / (num_elements * num_elements);
+		if (total_sum < eps) 
+    		done = 1;
+		else
+			num_iter++;
+		printf ("Iteration %d. DIFF: %f.\n", num_iter, total_sum);
 	}
 	free((void *) thread_data_array);
 	free((void *) thread_id);
+	return num_iter;
 }
 
 void* jacobi(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
 	int chunk_size = thread_data->chunk_size;
-	int i, j, k;
+	grid_t* grid = thread_data->G;
 	int tid = thread_data->tid;
-	int num_elements = thread_data->num_elements;
-	grid_t* G = thread_data->G;
-	k = thread_data->k;
-	
-	int num_iter = 0;
 	int done = 0;
-    	
-	double diff;
+	int i, j, k;
+	int num_elements = 0;
+	double diff = 0.0;
+	thread_data->sum_array[tid] = 0;
 	float old, new; 
-    	float eps = 1e-2; /* Convergence criteria. */ 
-	
+    float eps = 1e-2; /* Convergence criteria. */ 
 	int end = thread_data->end;
 	int start = thread_data->start;
-	printf("TID=%i START=%i END=%i\n",tid, start, end);
+	if(tid == 0)
+		start = 1;
+	if(tid == thread_data->num_threads - 1)
+		end = grid->dim - 1;
+	//printf("TID=%i START=%i END=%i\n", tid, start, end);
 
-	while(!done) { /* While we have not converged yet. */
-        diff = 0.0;
-        num_elements = 0;
-	for (k = start; k < end; k++){
-			printf("TID=%i K=%i\n",tid, k);        
-	for (i = (k); i < (G->dim - 1); i++) { // Not +1 because the formula calls for k to be minused by 1
-			printf("TID=%i K=%i i=%i\n",tid, k, i);
-           		for (j = (k); j < (G->dim - 1); j++) {	
-                		printf("TID=%i K=%i i=%i j=%i\n",tid, k, i, j);
-				old = G->element[i * G->dim + j]; /* Store old value of grid point. */
-		
-				new = 0.25 * (G->element[(i - 1) * G->dim + j] +\
-                              		G->element[(i + 1) * G->dim + j] +\
-                              		G->element[i * G->dim + (j + 1)] +\
-                              		G->element[i * G->dim + (j - 1)]);
-                		
-				G->element[i * G->dim + j] = new; /* Update the grid-point value. */
-                		diff = diff + fabs(new - old); /* Calculate the difference in values. */
-                		num_elements++;
-            		}
-        	}
+      
+	for (i = start; i < end; i++) { 
+          	for (j = 1; j < (grid->dim - 1); j++) {	
+			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
+	
+			new = 0.25 * (grid->element[(i - 1) * grid->dim + j] +\
+                             		grid->element[(i + 1) * grid->dim + j] +\
+                             		grid->element[i * grid->dim + (j + 1)] +\
+                             		grid->element[i * grid->dim + (j - 1)]);
+               		
+			grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
+               diff = diff + fabs(new - old); /* Calculate the difference in values. */
+               num_elements++;
+		}
 	}
 	
-	printf("TID=%i is done\n", tid);	
-        /* End of an iteration. Check for convergence. */
-        diff = diff/num_elements;
-        printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
-        num_iter++;
-			  
-        if (diff < eps) 
-            done = 1;
-	}
+    /* End of an iteration. Check for convergence. */
+    //diff = diff/num_elements;
+    //printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
+ 
+    //if (diff < eps) 
+    //    done = 1;
+	thread_data->sum_array[tid] = diff;
 	pthread_exit (NULL);
-   	return num_iter;
-	
-	
-	
 }
 
+	
 /* Create a grid with the specified initial conditions. */
 grid_t * 
 create_grid (int dim, float min, float max)
@@ -309,3 +338,24 @@ grid_mse (grid_t *grid_1, grid_t *grid_2)
     return mse/num_elem; 
 }
 
+void 
+barrier_sync(barrier_t *barrier, int tid, int num_threads)
+{
+    sem_wait (&(barrier->counter_sem));
+
+    /* Check if all threads before us, that is num_threads - 1 threads have reached this point. */	  
+    if (barrier->counter == (num_threads - 1)) {
+        barrier->counter = 0; /* Reset the counter. */
+        sem_post (&(barrier->counter_sem)); 
+					 
+        /* Signal the blocked threads that it is now safe to cross the barrier. */
+        //printf ("Thread number %d is signalling other threads to proceed\n", tid); 
+        for (int i = 0; i < (num_threads - 1); i++)
+            sem_post (&(barrier->barrier_sem));
+    } 
+    else {
+        barrier->counter++;
+        sem_post (&(barrier->counter_sem));
+        sem_wait (&(barrier->barrier_sem)); /* Block on the barrier semaphore. */
+    }
+}

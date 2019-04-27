@@ -34,7 +34,6 @@ compute_gold (grid_t *grid)
                 num_elements++;
             }
         }
-		
         /* End of an iteration. Check for convergence. */
         diff = diff/num_elements;
         printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
