@@ -35,7 +35,8 @@ typedef struct thread_data_s
 	unsigned int num_elements;
 	int num_threads;
 	float* G;
-	int i, j, k;
+	//int i, j, k;
+	int k;
 	double diff;
 	float old, new; 
 	int num_iter;
@@ -118,9 +119,10 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 		thread_data_array[i].tid = i;
 		thread_data_array[i].chunk_size = chunk_size;
 		//thread_data_array[i].G = G->elements;
-		thread_data_array[i].num_threads = num_threads;
 		thread_data_array[i].start = i * chunk_size;
 		thread_data_array[i].end = (i * chunk_size) + chunk_size;
+		thread_data_array[i].num_threads = num_threads;
+
 		
 	} 
 	for(i = 0; i < num_threads; i++)
@@ -138,7 +140,6 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 void* jacobi(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
-	int chunk_size = thread_data->chunk_size;
 	int i, j, k;
 	int tid = thread_data->tid;
 	int num_elements = thread_data->num_elements;
