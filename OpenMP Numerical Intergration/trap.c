@@ -98,7 +98,16 @@ double
 compute_using_omp (float a, float b, int n, float h, int num_threads)
 {
 	double integral = 0.0;
+	omp_set_num_threads(num_threads);
+	int k;
+#pragma omp parallel for default(none) shared((float a, float b, int n, float h) private(k, integral)
+   integral = (f(a) + f(b))/2.0;
 
+   for (k = 1; k <= n-1; k++) 
+     integral += f(a+k*h);
+
+   integral = integral*h;
+	
     return integral;
 }
 
