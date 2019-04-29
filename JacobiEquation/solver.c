@@ -26,7 +26,13 @@ typedef struct thread_data_s
 	double* sum_array;
 	unsigned int chunk_size;
 	int num_threads;
+<<<<<<< HEAD
 	grid_t* G;
+=======
+	float* G;
+	//int i, j, k;
+	int k;
+>>>>>>> e4127a229192a9005259972594036b32cb2783be
 	double diff;
 	float old, new; 
 	int num_iter;
@@ -138,7 +144,18 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 	
 	while(!done)
 	{
+<<<<<<< HEAD
 		total_sum = 0.0;
+=======
+		thread_data_array[i].num_iter = 0;
+		thread_data_array[i].tid = i;
+		thread_data_array[i].chunk_size = chunk_size;
+		//thread_data_array[i].G = G->elements;
+		thread_data_array[i].start = i * chunk_size;
+		thread_data_array[i].end = (i * chunk_size) + chunk_size;
+		thread_data_array[i].num_threads = num_threads;
+
+>>>>>>> e4127a229192a9005259972594036b32cb2783be
 		
 		for(i = 0; i < num_threads; i++)
 		{
@@ -179,8 +196,12 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 void* jacobi(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
+<<<<<<< HEAD
 	int chunk_size = thread_data->chunk_size;
 	grid_t* grid = thread_data->G;
+=======
+	int i, j, k;
+>>>>>>> e4127a229192a9005259972594036b32cb2783be
 	int tid = thread_data->tid;
 	int done = 0;
 	int i, j, k;
