@@ -23,6 +23,7 @@
 #include <math.h>
 #include <float.h>
 #include <time.h>
+#include <sys/time.h>
 
 double compute_using_omp (float, float, int, float, int);
 double compute_gold (float, float, int, float);
@@ -38,6 +39,7 @@ main (int argc, char **argv)
         printf ("num-threads: Number of threads to use in the calculation\n");
         exit (EXIT_FAILURE);
     }
+	struct timeval start, stop;
 
     float a = atoi (argv[1]); /* Lower limit. */
 	float b = atof (argv[2]); /* Upper limit. */
@@ -45,14 +47,23 @@ main (int argc, char **argv)
 
 	float h = (b - a)/(float) n; /* Base of each trapezoid. */  
 	printf ("The base of the trapezoid is %f \n", h);
-
+	gettimeofday (&start, NULL);
 	double reference = compute_gold (a, b, n, h);
+	gettimeofday (&stop, NULL);
+
     printf ("Reference solution computed using single-threaded version = %f \n", reference);
+printf ("Execution time = %fs. \n\n", (float)(stop.tv_sec - start.tv_sec +\
+        	(stop.tv_usec - start.tv_usec)/(float)1000000));
+
 
 	/* Write this function to complete the trapezoidal rule using omp. */
     int num_threads = atoi (argv[4]); /* Number of threads. */
+	gettimeofday (&start, NULL);
 	double omp_result = compute_using_omp (a, b, n, h, num_threads);
+	gettimeofday (&stop, NULL);
 	printf ("Solution computed using %d threads = %f \n", num_threads, omp_result);
+printf ("Execution time = %fs. \n\n", (float)(stop.tv_sec - start.tv_sec +\
+        	(stop.tv_usec - start.tv_usec)/(float)1000000));
 
     exit(EXIT_SUCCESS);
 } 
@@ -85,9 +96,12 @@ compute_gold (float a, float b, int n, float h)
 
    integral = (f(a) + f(b))/2.0;
 
-   for (k = 1; k <= n-1; k++) 
+
+   for (k = 1; k <= n-1; k++){
      integral += f(a+k*h);
-   
+	//printf("Integral %f \n", integral);
+   }
+
    integral = integral*h;
 
    return integral;
@@ -98,17 +112,24 @@ double
 compute_using_omp (float a, float b, int n, float h, int num_threads)
 {
 	double integral = 0.0;
+	
 	omp_set_num_threads(num_threads);
 	int k;
-#pragma omp parallel for default(none) shared((float a, float b, int n, float h) private(k, integral)
-   integral = (f(a) + f(b))/2.0;
-
-   for (k = 1; k <= n-1; k++) 
-     integral += f(a+k*h);
-
-   integral = integral*h;
+	integral = (f(a) + f(b))/2.0;
 	
-    return integral;
+#pragma omp parallel for if(k > 1) default(none) shared(a, b, h, n, integral) private(k)
+
+	for (k = 1; k <= n-1; k++){
+     		//integral = (f(a) + f(b))/2.0;
+     		//printf("k %d \n", k);
+		integral += f(a+k*h);
+		
+	}
+	
+   	integral = integral*h;
+
+    	return integral;
+
 }
 
 
