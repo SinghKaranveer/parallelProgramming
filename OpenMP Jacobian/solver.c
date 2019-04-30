@@ -16,7 +16,9 @@
 #include <time.h>
 #include <stdlib.h>
 #include <math.h>
-#include "grid.h" 
+#include "grid.h"
+#include <sys/time.h>
+#include <omp.h> 
 
 extern int compute_gold (grid_t *);
 int compute_using_omp_jacobi (grid_t *, int);
@@ -52,7 +54,14 @@ main (int argc, char **argv)
 
 	/* Compute the reference solution using the single-threaded version. */
 	printf ("\nUsing the single threaded version to solve the grid\n");
+	struct timeval start, stop;
+	gettimeofday (&start, NULL);
+
 	int num_iter = compute_gold (grid_1);
+	gettimeofday (&stop, NULL);
+printf ("CPU run time = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec) / (float) 1000000));
+
 	printf ("Convergence achieved after %d iterations\n", num_iter);
     /* Print key statistics for the converged values. */
 	printf ("Printing statistics for the interior grid points\n");
@@ -63,7 +72,12 @@ main (int argc, char **argv)
 	
 	/* Use omp to solve the equation using the jacobi method. */
 	printf ("\nUsing omp to solve the grid using the jacobi method\n");
+	gettimeofday (&start, NULL);
 	num_iter = compute_using_omp_jacobi (grid_2, num_threads);
+	gettimeofday (&stop, NULL);
+	printf ("CPU run time (MT) = %0.8f s.\n", (float) (stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec) / (float) 1000000));
+
 	printf ("Convergence achieved after %d iterations\n", num_iter);			
     printf ("Printing statistics for the interior grid points\n");
 	print_stats (grid_2);
@@ -96,12 +110,11 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
     float eps = 1e-2; /* Convergence criteria. */
     int num_elements; 
 	omp_set_num_threads(num_threads);
-	#pragma omp parallel for if(num_rows > threshold) default(none) shared(eps, diff, grid, num_elements) private(i, j)
-	while(!done) { /* While we have not converged yet. */
-		
-		diff = 0.0;
-		num_elements = 0;
-
+	diff = 0.0;
+	num_elements = 0;
+	while(!done){
+	#pragma omp parallel for if(i > grid->dim - 1) default(none) shared(eps, grid, num_elements, diff) private(i, j, old, new)
+	
 		for (i = 1; i < (grid->dim - 1); i++) {
 		    for (j = 1; j < (grid->dim - 1); j++) {
 			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
