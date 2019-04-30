@@ -96,14 +96,16 @@ compute_gold (float a, float b, int n, float h)
    int k;
 
    integral = (f(a) + f(b))/2.0;
-
-
+	//double sum = 0.0;
    for (k = 1; k <= n-1; k++){
+	//sum += f(a+k*h);
+	//printf("Sum %f\n", sum);
      integral += f(a+k*h);
-	//printf("Integral %f \n", integral);
+	//printf("Integral %f k %d \n", integral, k);
    }
-
+	//printf("Intergral outside of loop is %f\n", integral);
    integral = integral*h;
+	//printf("Intergral after h multiplication is %f\n", integral);
 
    return integral;
 }  
@@ -113,25 +115,41 @@ double
 compute_using_omp (float a, float b, int n, float h, int num_threads)
 {
 	double integral = 0.0;
-	
-	omp_set_num_threads(num_threads);
 	int k;
+	omp_set_num_threads(num_threads);
+	//int tid = omp_get_thread_num();
+	//
 	integral = (f(a) + f(b))/2.0;
-	
-#pragma omp parallel for if(k > n) default(none) shared(a, b, h, n, integral) private(k)
-
+	double sum = 0.0;
+#pragma omp parallel shared( a, h) private(k, sum)
+{
+	int tid = omp_get_thread_num();
+	#pragma omp for schedule(static,1)
 	for (k = 1; k <= n-1; k++){
      		//integral = (f(a) + f(b))/2.0;
      		//printf("k %d \n", k);
-		integral += f(a+k*h);
-		
+		//integral += f(a+k*h);
+		sum += f(a+k*h);
+		//printf("Integral %f\n", integral);
+		//printf("Sum is %f k is %d Thread ID is %d\n",sum ,k, tid);
 	}
-	
-   	integral = integral*h;
+   	//integral = integral*h;
+    	//return integral;
+    	#pragma omp critical
+		//printf("Integral beginning critcal %f\n", integral);
+		integral += sum;
+		//printf("Integral beginning critcal %f\n", integral);
+		//integral = integral*h;
+}
+	//	printf("Integral beginning critcal %f\n", integral);
+		//printf("sum %f\n", sum);
+		//integral += sum;
+	//	printf("Integral beginning critcal %f\n", integral);
+		   integral = integral*h;
+	//printf("Intergral after h multiplication is %f\n", integral);
 
-    	return integral;
+
+return integral;
 
 }
-
-
 
