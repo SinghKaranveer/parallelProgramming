@@ -88,7 +88,45 @@ main (int argc, char **argv)
 int 
 compute_using_omp_jacobi (grid_t *grid, int num_threads)
 {		
-    return 1;
+    int num_iter = 0;
+	int done = 0;
+    int i, j;
+	double diff;
+	float old, new; 
+    float eps = 1e-2; /* Convergence criteria. */
+    int num_elements; 
+	omp_set_num_threads(num_threads);
+	#pragma omp parallel for if(num_rows > threshold) default(none) shared(eps, diff, grid, num_elements) private(i, j)
+	while(!done) { /* While we have not converged yet. */
+		
+		diff = 0.0;
+		num_elements = 0;
+
+		for (i = 1; i < (grid->dim - 1); i++) {
+		    for (j = 1; j < (grid->dim - 1); j++) {
+			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
+			/* Apply the update rule. */	
+			new = 0.25 * (grid->element[(i - 1) * grid->dim + j] +\
+				      grid->element[(i + 1) * grid->dim + j] +\
+				      grid->element[i * grid->dim + (j + 1)] +\
+				      grid->element[i * grid->dim + (j - 1)]);
+
+			grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
+			diff = diff + fabs(new - old); /* Calculate the difference in values. */
+			num_elements++;
+		    }
+        	}
+		
+        /* End of an iteration. Check for convergence. */
+        diff = diff/num_elements;
+        printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
+        num_iter++;
+			  
+        if (diff < eps) 
+            done = 1;
+	}
+	
+    return num_iter;
 }
 
 
