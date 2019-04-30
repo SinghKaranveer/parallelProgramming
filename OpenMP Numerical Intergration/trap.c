@@ -24,6 +24,7 @@
 #include <float.h>
 #include <time.h>
 #include <sys/time.h>
+#include <omp.h>
 
 double compute_using_omp (float, float, int, float, int);
 double compute_gold (float, float, int, float);
@@ -117,7 +118,7 @@ compute_using_omp (float a, float b, int n, float h, int num_threads)
 	int k;
 	integral = (f(a) + f(b))/2.0;
 	
-#pragma omp parallel for if(k > 1) default(none) shared(a, b, h, n, integral) private(k)
+#pragma omp parallel for if(k > n) default(none) shared(a, b, h, n, integral) private(k)
 
 	for (k = 1; k <= n-1; k++){
      		//integral = (f(a) + f(b))/2.0;
