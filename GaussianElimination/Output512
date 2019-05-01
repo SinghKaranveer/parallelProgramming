@@ -1,0 +1,150 @@
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.53919601 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.96821898 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55184698 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.06491005 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57919401 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.03641891 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56076002 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92840302 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56701499 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.18144202 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.54178399 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92995298 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.58304799 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.28863597 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55685401 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.22006404 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56761700 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.11503196 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57480299 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.21751404 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56353700 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.25551605 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55980599 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.93806201 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57046700 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.14108205 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56773102 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92359000 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56607401 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.32972801 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55789298 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.32819295 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57981199 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.45054197 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55455297 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.23271799 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57201302 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92668402 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56898904 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92210501 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56630701 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.11073995 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55325997 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92417502 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56884396 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.09328902 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56400299 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.38124108 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55270499 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.94211501 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56152999 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.06705403 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.55114603 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.20995605 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57705700 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.15706301 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.56321299 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 1.03034794 s.
+TEST PASSED
+Performing gaussian elimination using the reference code.
+CPU run time (Serial) = 0.57076001 s.
+Single-threaded Gaussian elimination was successful.
+CPU run time (MT) = 0.92531198 s.
+TEST PASSED

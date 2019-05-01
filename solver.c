@@ -179,13 +179,16 @@ compute_using_pthreads_jacobi (grid_t *G, int num_threads)
 void* jacobi(void* args)
 {
 	thread_data_t *thread_data = (thread_data_t *) args;
+	int chunk_size = thread_data->chunk_size;
 	grid_t* grid = thread_data->G;
 	int tid = thread_data->tid;
-	int i, j;
+	int done = 0;
+	int i, j, k;
 	int num_elements = 0;
 	double diff = 0.0;
 	thread_data->sum_array[tid] = 0;
 	float old, new; 
+    float eps = 1e-2; /* Convergence criteria. */ 
 	int end = thread_data->end;
 	int start = thread_data->start;
 	if(tid == 0)

@@ -8,7 +8,6 @@ int
 compute_gold (float *U, unsigned int num_elements)
 {
     unsigned int i, j, k;
-    printf("num_elements=%i\n",num_elements);
     for (k = 0; k < num_elements; k++) {
         for (j = (k + 1); j < num_elements; j++) {   /* Reduce the current row. */
             if (U[num_elements * k + k] == 0) {
@@ -27,11 +26,5 @@ compute_gold (float *U, unsigned int num_elements)
             U[num_elements * i + k] = 0;
         }
     }
-	printf("FIRST 512 IN GOLD\n");
-	for(i=0;i < num_elements*num_elements; i++)
-	{
-	//	printf("%i  =  %f\n",i,U[i]);
-	}
-    
     return 1;
 }
