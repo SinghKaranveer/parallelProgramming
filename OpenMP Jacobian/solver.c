@@ -105,31 +105,51 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
     int num_iter = 0;
 	int done = 0;
     int i, j;
+	int n = grid->dim;
+		
 	double diff;
 	float old, new; 
     float eps = 1e-2; /* Convergence criteria. */
-    int num_elements; 
+    int num_elements;
 	omp_set_num_threads(num_threads);
-	diff = 0.0;
-	num_elements = 0;
-	while(!done){
-	#pragma omp parallel for if(i > grid->dim - 1) default(none) shared(eps, grid, num_elements, diff) private(i, j, old, new)
+	//diff = 0.0;
+	double local_diff = 0.0;
+	//num_elements = 0;
+	//int local_num_elements;
 	
-		for (i = 1; i < (grid->dim - 1); i++) {
-		    for (j = 1; j < (grid->dim - 1); j++) {
-			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
+	while(!done){
+	diff =0.0;
+	local_diff = 0.0;
+	num_elements = 0;
+	//local_num_elements = 0;
+	#pragma omp parallel shared(grid) private(i, j, n, old, new)
+	{
+		n = grid->dim;	
+		//e = grid->element;
+		//int tid = omp_get_thread_num();
+		#pragma omp for schedule(static,1)
+		for (i = 1; i < n -1; i++) {
+		    for (j = 1; j < n -1 ; j++) {
+			old = grid->element[i * n + j]; /* Store old value of grid point. */
 			/* Apply the update rule. */	
-			new = 0.25 * (grid->element[(i - 1) * grid->dim + j] +\
-				      grid->element[(i + 1) * grid->dim + j] +\
-				      grid->element[i * grid->dim + (j + 1)] +\
-				      grid->element[i * grid->dim + (j - 1)]);
+			new = 0.25 * (grid->element[(i - 1) * n + j] +\
+				      grid->element[(i + 1) * n + j] +\
+				      grid->element[i * n + (j + 1)] +\
+				      grid->element[i * n + (j - 1)]);
 
-			grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
-			diff = diff + fabs(new - old); /* Calculate the difference in values. */
+			grid->element[i * n + j] = new; /* Update the grid-point value. */
+			//diff = diff + fabs(new - old); /* Calculate the difference in values. */
+			//printf("Diff %f old %f new %f tid %d\n", diff, old, new, tid);
+			local_diff = local_diff + fabs(new - old); /* Calculate the difference in values. */
 			num_elements++;
+			//local_num_elements++;
 		    }
         	}
-		
+		#pragma omp critical
+			diff += local_diff;
+		//	num_elements += local_num_elements;
+		//#pragma omp barrier
+	}
         /* End of an iteration. Check for convergence. */
         diff = diff/num_elements;
         printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
