@@ -105,32 +105,18 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
     int num_iter = 0;
 	int done = 0;
     int i, j;
-	//int n = grid->dim;
-		
 	double diff;
 	float old, new; 
     float eps = 1e-2; /* Convergence criteria. */
     int num_elements;
 	omp_set_num_threads(num_threads);
-	//diff = 0.0;
-	double local_diff = 0.0;
-	//num_elements = 0;
-	//int local_num_elements;
-	//print_grid(grid);
 	int chunk_size = (int) floor(grid->dim / num_threads); 
 
 	while(!done){
 	diff =0.0;
-	local_diff = 0.0;
 	num_elements = 0;
-	//local_num_elements = 0;
-		//print_grid(grid);
 	#pragma omp parallel default(none) shared(grid, num_elements, diff, chunk_size) private(old, new)
-
 	{
-		//n = grid->dim;	
-		//e = grid->element;
-		//int tid = omp_get_thread_num();
 		#pragma omp for schedule(guided, chunk_size) collapse(2) reduction(+:num_elements, diff)
 		for (i = 1; i < grid->dim - 1; i++) {
 		    for (j = 1; j < grid->dim - 1 ; j++) {
@@ -143,33 +129,17 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
 
 			grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
 			diff += fabs(new - old); /* Calculate the difference in values. */
-			//local_diff = local_diff + fabs(new - old); /* Calculate the difference in values. */	
 			num_elements++;
-			
-			//local_num_elements++;
-			//printf("num_elements %d Diff %f old %f new %f tid %d\n",local_num_elements, local_diff, old, new, tid);
 		    }
         	}
-		//#pragma omp critical
-			//diff += local_diff;
-			//num_elements += local_num_elements;
-			
-		//#pragma omp barrier
-		//
 	}
-        /* End of an iteration. Check for convergence. */
-	//printf("-------------------\n");
-        printf("Diff: %f Num of elements %d\n",diff, num_elements);
-	diff = diff/num_elements;
-        //print_grid(grid);
+        diff = diff/num_elements;
 	printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
-	//printf("------------------\n");
         num_iter++;
 			  
         if (diff < eps) 
             done = 1;
 	}
-	//print_grid(grid);
     return num_iter;
 }
 
