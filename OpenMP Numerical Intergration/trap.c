@@ -113,7 +113,7 @@ compute_using_omp (float a, float b, int n, float h, int num_threads)
 	omp_set_num_threads(num_threads);
 	integral = (f(a) + f(b))/2.0;
 	double sum = 0.0;
-#pragma omp parallel shared( a, h) private(k, sum)
+#pragma omp parallel shared( a, h) private(sum)
 {
 	int tid = omp_get_thread_num();
 	#pragma omp for schedule(static,8) reduction(+: integral)
