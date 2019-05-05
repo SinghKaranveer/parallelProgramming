@@ -125,15 +125,15 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
 	num_elements = 0;
 	//local_num_elements = 0;
 		//print_grid(grid);
-	#pragma omp parallel shared(grid) private(i, j, old, new)
+	#pragma omp parallel default(none) shared(grid, num_elements, diff, chunk_size) private(old, new)
 
 	{
 		//n = grid->dim;	
 		//e = grid->element;
 		//int tid = omp_get_thread_num();
-		#pragma omp for schedule(dynamic, chunk_size) collapse(2)
-		for (i = 1; i < grid->dim -1; i++) {
-		    for (j = 1; j < grid->dim -1 ; j++) {
+		#pragma omp for schedule(dynamic, chunk_size) collapse(2) reduction(+:num_elements, diff)
+		for (i = 1; i < grid->dim - 1; i++) {
+		    for (j = 1; j < grid->dim - 1 ; j++) {
 			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
 			/* Apply the update rule. */	
 			new = 0.25 * (grid->element[(i - 1) * grid->dim + j] +\
@@ -142,9 +142,10 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
 				      grid->element[i * grid->dim + (j - 1)]);
 
 			grid->element[i * grid->dim + j] = new; /* Update the grid-point value. */
-			diff = diff + fabs(new - old); /* Calculate the difference in values. */
+			diff += fabs(new - old); /* Calculate the difference in values. */
 			//local_diff = local_diff + fabs(new - old); /* Calculate the difference in values. */	
 			num_elements++;
+			
 			//local_num_elements++;
 			//printf("num_elements %d Diff %f old %f new %f tid %d\n",local_num_elements, local_diff, old, new, tid);
 		    }
@@ -157,10 +158,12 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
 		//
 	}
         /* End of an iteration. Check for convergence. */
-        printf("Num of elements %d\n", num_elements);
+	//printf("-------------------\n");
+        printf("Diff: %f Num of elements %d\n",diff, num_elements);
 	diff = diff/num_elements;
         //print_grid(grid);
 	printf ("Iteration %d. DIFF: %f.\n", num_iter, diff);
+	//printf("------------------\n");
         num_iter++;
 			  
         if (diff < eps) 
