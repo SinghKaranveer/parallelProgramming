@@ -131,7 +131,7 @@ compute_using_omp_jacobi (grid_t *grid, int num_threads)
 		//n = grid->dim;	
 		//e = grid->element;
 		//int tid = omp_get_thread_num();
-		#pragma omp for schedule(dynamic, chunk_size) collapse(2) reduction(+:num_elements, diff)
+		#pragma omp for schedule(guided, chunk_size) collapse(2) reduction(+:num_elements, diff)
 		for (i = 1; i < grid->dim - 1; i++) {
 		    for (j = 1; j < grid->dim - 1 ; j++) {
 			old = grid->element[i * grid->dim + j]; /* Store old value of grid point. */
