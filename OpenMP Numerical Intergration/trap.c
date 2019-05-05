@@ -112,18 +112,17 @@ compute_using_omp (float a, float b, int n, float h, int num_threads)
 	int k;
 	omp_set_num_threads(num_threads);
 	integral = (f(a) + f(b))/2.0;
-	double sum = 0.0;
-#pragma omp parallel shared( a, h) private(sum)
-{
-	int tid = omp_get_thread_num();
-	#pragma omp for schedule(static,8) reduction(+: integral)
-	for (k = 1; k <= n-1; k++){
-		integral += f(a+k*h);
+	int chunk_size = (int) ceil(n*1.0 / num_threads); // Chunk size is how many trapezoids each thread will calculate
+	#pragma omp parallel shared(chunk_size, a, h)
+	{
+		#pragma omp for schedule(static, chunk_size) reduction(+: integral)
+		for (k = 1; k <= n-1; k++){
+			integral += f(a+k*h);
 
-	}
-  }
-		   integral = integral*h;
-return integral;
+		}	
+	}	
+	integral = integral*h;
+	return integral;
 
 }
 
