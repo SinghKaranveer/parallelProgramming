@@ -15,12 +15,13 @@
 #include <sys/time.h>
 
 /* #define DEBUG */
+#define DEBUG
 
 /* Include the kernel code. */
 #include "blur_filter_kernel.cu"
 
 extern "C" void compute_gold (const image_t, image_t);
-void compute_on_device (const image_t, image_t);
+void compute_on_device (image_t, image_t);
 int check_results (const float *, const float *, int, float);
 void print_image (const image_t);
 
@@ -56,10 +57,10 @@ main (int argc, char **argv)
    /* Calculate the blur on the CPU. The result is stored in out_gold. */
     printf ("Calculating blur on the CPU\n");
    compute_gold (in, out_gold); 
-#ifdef DEBUG 
+//#ifdef DEBUG 
    print_image (in);
    print_image (out_gold);
-#endif
+//#endif
 
    /* Calculate the blur on the GPU. The result is stored in out_gpu. */
    printf ("Calculating blur on the GPU\n");
@@ -85,9 +86,37 @@ main (int argc, char **argv)
 
 /* FIXME: Complete this function to calculate the blur on the GPU. */
 void 
-compute_on_device (const image_t in, image_t out)
+compute_on_device (image_t in, image_t out)
 {
-    return;
+	//image_t* in_on_device;
+	//image_t* out_on_device;
+	int size = in.size;
+	float* in_elements = NULL;
+	float* out_elements = NULL;
+	int i;
+	for(i=0; i < size * size; i++)
+	{
+		//printf("%f\n", in.element[i]);
+	}
+
+   	print_image (in);
+	cudaMalloc ((void**) &in_elements, in.size * in.size * sizeof(float));
+	cudaMemcpy (in_elements, in.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
+
+	cudaMalloc ((void**) &out_elements, in.size * in.size * sizeof(float));
+	//cudaMemcpy (out_elements, out.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
+
+	dim3 thread_block (size, 1, 1);
+	dim3 grid (1,1);
+
+	blur_filter_kernel<<<grid, thread_block>>>(in_elements, out_elements, size);
+
+	cudaMemcpy(out.element, out_elements, size * size * sizeof(float), cudaMemcpyDeviceToHost);
+   	print_image (out);
+
+	cudaFree(in_elements);
+	cudaFree(out_elements);
+	return;
 }
 
 /* Function to check correctness of the results. */

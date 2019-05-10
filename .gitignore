@@ -1,4 +1,5 @@
 *.o
+*swp*
 output
 *.log
 *.out
