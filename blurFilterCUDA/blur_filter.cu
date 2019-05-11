@@ -43,6 +43,7 @@ main (int argc, char **argv)
     in.element = (float *) malloc (sizeof (float) * size * size);
     out_gold.element = (float *) malloc (sizeof (float) * size * size);
     out_gpu.element = (float *) malloc (sizeof (float) * size * size);
+    struct timeval start, stop;	
     if ((in.element == NULL) || (out_gold.element == NULL) || (out_gpu.element == NULL)) {
         perror ("Malloc");
         exit (EXIT_FAILURE);
@@ -56,11 +57,15 @@ main (int argc, char **argv)
   
    /* Calculate the blur on the CPU. The result is stored in out_gold. */
     printf ("Calculating blur on the CPU\n");
-   compute_gold (in, out_gold); 
-//#ifdef DEBUG 
-   print_image (in);
-   print_image (out_gold);
-//#endif
+	gettimeofday (&start, NULL);
+	compute_gold (in, out_gold); 
+	gettimeofday (&stop, NULL);
+	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+        	(stop.tv_usec - start.tv_usec)/(float)1000000));
+#ifdef DEBUG 
+   //print_image (in);
+   //print_image (out_gold);
+#endif
 
    /* Calculate the blur on the GPU. The result is stored in out_gpu. */
    printf ("Calculating blur on the GPU\n");
@@ -94,25 +99,26 @@ compute_on_device (image_t in, image_t out)
 	float* in_elements = NULL;
 	float* out_elements = NULL;
 	int i;
-	for(i=0; i < size * size; i++)
-	{
-		//printf("%f\n", in.element[i]);
-	}
+	struct timeval start, stop;	
 
-   	print_image (in);
+
 	cudaMalloc ((void**) &in_elements, in.size * in.size * sizeof(float));
 	cudaMemcpy (in_elements, in.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
 
 	cudaMalloc ((void**) &out_elements, in.size * in.size * sizeof(float));
 	//cudaMemcpy (out_elements, out.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
-
+	
+	gettimeofday (&start, NULL);
 	dim3 thread_block (size, 1, 1);
 	dim3 grid (1,1);
 
 	blur_filter_kernel<<<grid, thread_block>>>(in_elements, out_elements, size);
+	cudaDeviceSynchronize();
+	gettimeofday (&stop, NULL);
+		printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                	(stop.tv_usec - start.tv_usec)/(float)1000000));
 
 	cudaMemcpy(out.element, out_elements, size * size * sizeof(float), cudaMemcpyDeviceToHost);
-   	print_image (out);
 
 	cudaFree(in_elements);
 	cudaFree(out_elements);

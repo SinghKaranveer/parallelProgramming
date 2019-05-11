@@ -14,6 +14,8 @@ blur_filter_kernel (const float *in, float *out, int size)
 	for(pix = 0; pix < size; pix++)
 	{
 		pixelIndex = tid * size + pix;
+		blur_value = 0.0;
+		num_neighbors = 0;
 		for(i = -BLUR_SIZE; i < (BLUR_SIZE + 1); i++)
 		{
 			for(j = -BLUR_SIZE; j < (BLUR_SIZE + 1); j++)
@@ -28,7 +30,7 @@ blur_filter_kernel (const float *in, float *out, int size)
 				}
 			}
 		}
-		printf("%f\n", blur_value/num_neighbors);
+		//printf("%f\n", blur_value/num_neighbors);
 		out[pixelIndex] = blur_value/num_neighbors;
 		
 	}
