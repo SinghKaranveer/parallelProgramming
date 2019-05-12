@@ -98,19 +98,20 @@ compute_on_device (image_t in, image_t out)
 	int size = in.size;
 	float* in_elements = NULL;
 	float* out_elements = NULL;
-	int i;
 	struct timeval start, stop;	
+	int tile_size;
 
 
 	cudaMalloc ((void**) &in_elements, in.size * in.size * sizeof(float));
 	cudaMemcpy (in_elements, in.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
 
 	cudaMalloc ((void**) &out_elements, in.size * in.size * sizeof(float));
-	//cudaMemcpy (out_elements, out.element, in.size * in.size * sizeof (float), cudaMemcpyHostToDevice);
+	
+	tile_size = 1;
 	
 	gettimeofday (&start, NULL);
-	dim3 thread_block (size, 1, 1);
-	dim3 grid (1,1);
+	dim3 thread_block (tile_size, tile_size, 1);
+	dim3 grid (size / tile_size, size / tile_size);
 
 	blur_filter_kernel<<<grid, thread_block>>>(in_elements, out_elements, size);
 	cudaDeviceSynchronize();
