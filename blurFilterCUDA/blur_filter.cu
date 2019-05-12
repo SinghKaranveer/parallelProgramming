@@ -107,7 +107,7 @@ compute_on_device (image_t in, image_t out)
 
 	cudaMalloc ((void**) &out_elements, in.size * in.size * sizeof(float));
 	
-	tile_size = 1;
+	tile_size = 32;
 	
 	gettimeofday (&start, NULL);
 	dim3 thread_block (tile_size, tile_size, 1);
@@ -116,8 +116,8 @@ compute_on_device (image_t in, image_t out)
 	blur_filter_kernel<<<grid, thread_block>>>(in_elements, out_elements, size);
 	cudaDeviceSynchronize();
 	gettimeofday (&stop, NULL);
-		printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
-                	(stop.tv_usec - start.tv_usec)/(float)1000000));
+	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec)/(float)1000000));
 
 	cudaMemcpy(out.element, out_elements, size * size * sizeof(float), cudaMemcpyDeviceToHost);
 
