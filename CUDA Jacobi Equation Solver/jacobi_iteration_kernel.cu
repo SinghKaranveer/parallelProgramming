@@ -12,7 +12,7 @@ __global__ void jacobi_iteration_kernel_naive (const matrix_t A, matrix_t new_na
 	int row = blockDim.y * blockY + threadY;
 	int col = blockDim.x * blockX + threadX;
 	double sum;
-	int i, j, curr_row, curr_col;
+	int i, j;
 	
 	unsigned int num_rows = A.num_rows;
 	unsigned int num_cols = A.num_columns;

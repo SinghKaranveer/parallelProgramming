@@ -86,7 +86,7 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	unsigned int num_rows = A.num_rows;
 	unsigned int num_cols = A.num_columns;
 	struct timeval start, stop;
-	unsigned int tile_size;
+	//unsigned int tile_size;
 	
 	matrix_t new_naive_x = allocate_matrix_on_host (MATRIX_SIZE, 1, 0) ;
 	matrix_t new_naive_cuda_x = allocate_matrix_on_device (new_naive_x);
@@ -103,10 +103,10 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	unsigned int done = 0;
 	double ssd, mse;
 	unsigned int num_iter = 0;
-	tile_size = 32;	
+	//tile_size = 32;	
 	//print_matrix(A);
-	dim3 thread_block (tile_size); // ......
-	dim3 grid (num_rows);	
+	//dim3 thread_block (tile_size); // ......
+	//dim3 grid (num_rows);	
 	//print_matrix(new_naive_x);
 	//print_matrix(gpu_naive_sol_x);
 	//jacobi_iteration_kernel_naive<<<1, 1>>>(A, gpu_naive_sol_x, B);
@@ -116,7 +116,7 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	while (!done){ 
 	//printf(i);
 	//Activate Kernel
-	jacobi_iteration_kernel_naive<<<grid, thread_block>>>(A,new_naive_cuda_x, gpu_naive_sol_x, B);
+	jacobi_iteration_kernel_naive<<<(int)ceil((num_rows*num_cols)/THREAD_BLOCK_SIZE), THREAD_BLOCK_SIZE>>>(A,new_naive_cuda_x, gpu_naive_sol_x, B);
 	cudaDeviceSynchronize();
 	
 	copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
@@ -124,7 +124,7 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	//Check for convergence and update the unknowns.
 	ssd = 0.0;
 		for (i = 0; i < num_rows; i++){
-			ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] 				- gpu_naive_sol_x.elements[i]);
+			ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]);
 			gpu_naive_sol_x.elements[i] = new_naive_x.elements[i];
 	
 		}
