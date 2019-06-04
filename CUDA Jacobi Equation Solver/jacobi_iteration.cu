@@ -17,7 +17,7 @@
 #include "jacobi_iteration_kernel.cu"
 
 /* Uncomment the line below if you want the code to spit out debug information. */ 
-//#define DEBUG
+#define DEBUG
 
 int 
 main (int argc, char** argv) 
@@ -86,41 +86,28 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	unsigned int num_rows = A.num_rows;
 	unsigned int num_cols = A.num_columns;
 	struct timeval start, stop;
-	//unsigned int tile_size;
 	
 	matrix_t new_naive_x = allocate_matrix_on_host (MATRIX_SIZE, 1, 0) ;
 	matrix_t new_naive_cuda_x = allocate_matrix_on_device (new_naive_x);
-	//copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
 		
-	//print_matrix(new_naive_x);
-	//printf("Breaker");
 	/* Initialize current jacobi solution for the naive solution. */
 	for (i = 0; i < num_rows; i++)
         	gpu_naive_sol_x.elements[i] = B.elements[i];
-	//print_matrix(new_naive_x);
-	//printf("Break?");
 	/* Perform Jacobi iteration. */
 	unsigned int done = 0;
 	double ssd, mse;
 	unsigned int num_iter = 0;
-	//tile_size = 32;	
-	//print_matrix(A);
-	//dim3 thread_block (tile_size); // ......
-	//dim3 grid (num_rows);	
-	//print_matrix(new_naive_x);
-	//print_matrix(gpu_naive_sol_x);
-	//jacobi_iteration_kernel_naive<<<1, 1>>>(A, gpu_naive_sol_x, B);
-	//cudaDeviceSynchronize();
-	//copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
-
+	dim3 threads(32, 32);
+	dim3 grid((num_rows + 32 - 1)/32, (num_cols + 32 - 1)/32);
 	while (!done){ 
-	//printf(i);
 	//Activate Kernel
-	jacobi_iteration_kernel_naive<<<(int)ceil((num_rows*num_cols)/THREAD_BLOCK_SIZE), THREAD_BLOCK_SIZE>>>(A,new_naive_cuda_x, gpu_naive_sol_x, B);
+	jacobi_iteration_kernel_naive<<<grid, threads>>>(A.elements,new_naive_cuda_x.elements, gpu_naive_sol_x.elements, B.elements, num_rows, num_cols);
+//	check_CUDA_error("Error with kernel activation");
 	cudaDeviceSynchronize();
-	
-	copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
+	check_CUDA_error("Error with kernel activation");
 
+	copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
+	//print_matrix(new_naive_cuda_x);
 	//Check for convergence and update the unknowns.
 	ssd = 0.0;
 		for (i = 0; i < num_rows; i++){
@@ -137,7 +124,6 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 		done = 1;
 
 	}
-	//print_matrix(new_naive_x);	
 	
 	//copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
  	printf ("\nConvergence achieved after %d iterations \n", num_iter);
