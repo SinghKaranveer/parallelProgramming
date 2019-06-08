@@ -20,6 +20,7 @@ void print_matrix (float *, int, int);
 #define HALF_WIDTH 8
 #define COEFF 10
 
+
 /* Uncomment line below to spit out debug information. */
 // #define DEBUG
 
@@ -32,7 +33,34 @@ compute_on_device (float *gpu_result, float *matrix_c,\
                    float *kernel, int num_cols,\
                    int num_rows, int half_width)
 {
-    return;
+	int tile_size;	
+	float* matOnDevice = NULL;
+	float* gpuResultOnDevice = NULL;
+	float* kernelOnDevice = NULL;
+	
+	cudaMalloc ((void**) &matOnDevice, num_cols * num_rows * sizeof(float));
+	cudaMemcpy (matOnDevice, matrix_c, num_cols * num_rows * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMalloc ((void**) &gpuResultOnDevice, num_cols * num_rows * sizeof(float));
+	cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
+	cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
+
+	tile_size = 1;
+	
+	dim3 thread_block (tile_size, tile_size, 1);
+	dim3 grid (num_rows / tile_size, num_cols / tile_size);
+	
+	convolve_rows_kernel_naive <<< grid, thread_block >>> (matOnDevice, gpuResultOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+	cudaDeviceSynchronize();
+
+	convolve_columns_kernel_naive <<< grid, thread_block >>> (gpuResultOnDevice, matOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+	cudaDeviceSynchronize();
+	
+	cudaMemcpy(gpu_result, matOnDevice, num_cols * num_rows * sizeof(float), cudaMemcpyDeviceToHost);
+	
+	cudaFree(matOnDevice);
+	cudaFree(gpuResultOnDevice);
+
+	return;
 }
 
 

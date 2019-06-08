@@ -4,14 +4,69 @@
  */
 
 __global__ void 
-convolve_rows_kernel_naive()
+convolve_rows_kernel_naive(float *in, float *out, int num_rows, int num_cols, float* kernel, int half_width)
 {
-    return;
+	int threadX = threadIdx.x;
+	int threadY = threadIdx.y;
+	int blockX = blockIdx.x;
+	int blockY = blockIdx.y;
+	int row = blockDim.y * blockY + threadY;
+	int col = blockDim.x * blockX + threadX;
+	int i, i1;
+	int j, j1, j2;
+	int x, y;
+	y = row;
+	x = col;
+	j1 = x - half_width;
+	j2 = x + half_width;
+	if(j1 < 0)
+		j1 = 0;
+	if(j2 >= num_cols)
+		j2 = num_cols - 1;
+	
+	i1 = j1 - x;
+	
+	j1 = j1 - x + half_width;
+	j2 = j2 - x + half_width;
+	
+	out[y * num_cols + x] = 0.0f;
+	for(i = i1, j = j1; j <= j2; j++, i++)
+		out[y * num_cols + x] += kernel[j] * in[y * num_cols + x + i];
+	//printf("%f\n", out[y * num_cols + x]);
+	
+	return; 
 }
 
 __global__ void 
-convolve_columns_kernel_naive()
+convolve_columns_kernel_naive(float *in, float *out, int num_rows, int num_cols, float* kernel, int half_width)
 {
+	int threadX = threadIdx.x;
+	int threadY = threadIdx.y;
+	int blockX = blockIdx.x;
+	int blockY = blockIdx.y;
+	int row = blockDim.y * blockY + threadY;
+	int col = blockDim.x * blockX + threadX;
+	int i, i1;
+	int j, j1, j2;
+	int x, y;
+	y = row;
+	x = col;
+	j1 = y - half_width;
+	j2 = y + half_width;
+	
+	if(j1 < 0)
+		j1 = 0;
+	if(j2 >= num_rows)
+		j2 = num_rows - 1;
+	
+	i1 = j1 - y;
+	
+	j1 = j1 - y + half_width;
+	j2 = j2 - y + half_width;
+
+	out[y * num_cols + x] = 0.0f;
+	for (i = i1, j = j1; j <= j2; j++, i++)
+		out[y * num_cols + x] += kernel[j] * in[y * num_cols + x + (i * num_cols)];
     return;
 }
 
