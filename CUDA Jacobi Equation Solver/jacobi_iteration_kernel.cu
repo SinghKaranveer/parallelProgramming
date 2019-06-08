@@ -14,14 +14,15 @@ __global__ void jacobi_iteration_kernel_naive (const float *A, float *new_naive_
 	double sum;
 	int i, j;
 
-
+	printf("\nFor Loop I starts\n");
         for (i = 0; i < num_rows; i++){
-              sum = -A[i * num_cols + i] * x[i];
-              for (j = 0; j < num_cols; j++)
+             double sum = -A[i * num_cols + i] * x[i];
+	printf("\nFor Loop J starts\n");
+             for (j = 0; j < num_cols; j++)
                  sum += A[i * num_cols + j] * x[j];
-        } 
+        }
+       printf("\nData written\n");
         new_naive_cuda_x[i] = (B[i] - sum)/A[i * num_cols + i];
-//Dr.K doesn't have the above line inside the for loop, not sure if that's intentional.        
            
 	return;
 }
