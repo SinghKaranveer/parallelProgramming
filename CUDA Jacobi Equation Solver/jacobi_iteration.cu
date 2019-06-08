@@ -96,9 +96,13 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	/* Perform Jacobi iteration. */
 	unsigned int done = 0;
 	double ssd, mse;
+	int size = num_rows*num_cols;
+	int tile_size = THREAD_BLOCK_SIZE/4; //Thread block size is 128, so by dividing 4, it comes out to 1024 thraeds per block
 	unsigned int num_iter = 0;
-	dim3 threads(32, 32);
-	dim3 grid((num_rows + 32 - 1)/32, (num_cols + 32 - 1)/32);
+	dim3 threads (tile_size, tile_size, 1); 
+	dim3 grid (size/tile_size, size/tile_size);
+
+
 	while (!done){ 
 	//Activate Kernel
 	jacobi_iteration_kernel_naive<<<grid, threads>>>(A.elements,new_naive_cuda_x.elements, gpu_naive_sol_x.elements, B.elements, num_rows, num_cols);
