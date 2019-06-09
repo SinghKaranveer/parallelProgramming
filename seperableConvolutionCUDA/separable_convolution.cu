@@ -46,6 +46,10 @@ compute_on_device (float *gpu_result, float *matrix_c,\
 	cudaMalloc ((void**) &gpuResultOnDevice, num_cols * num_rows * sizeof(float));
 	//cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
 	//cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
+	
+	cudaChannelFormatDesc desc = cudaCreateChannelDesc<float> ();
+	cudaBindTexture2D (NULL, in_on_tex, matOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
+	cudaBindTexture2D (NULL, out_on_tex, gpuResultOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
 
 	cudaMemcpyToSymbol (kernel_c, kernel, (HALF_WIDTH * 2 + 1) * sizeof (float)); 	
 	tile_size = 32;
@@ -63,6 +67,9 @@ compute_on_device (float *gpu_result, float *matrix_c,\
     	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
 	
+	cudaUnbindTexture (in_on_tex);
+	cudaUnbindTexture (out_on_tex);
+
 	cudaMemcpy(gpu_result, matOnDevice, num_cols * num_rows * sizeof(float), cudaMemcpyDeviceToHost);
 	
 	cudaFree(matOnDevice);

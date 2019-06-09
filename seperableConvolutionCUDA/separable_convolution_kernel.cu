@@ -4,6 +4,9 @@
  */
 
 
+texture<float, 2> in_on_tex;
+texture<float, 2> out_on_tex;
+
 __global__ void 
 convolve_rows_kernel_naive(float *in, float *out, int num_rows, int num_cols, float* kernel, int half_width)
 {
@@ -87,6 +90,9 @@ convolve_rows_kernel_optimized(float *in, float *out, int num_rows, int num_cols
 	x = col;
 	j1 = x - half_width;
 	j2 = x + half_width;
+	int row_number = 32 * blockY + threadY;
+	int col_number = 32 * blockX + threadX;
+	
 	if(j1 < 0)
 		j1 = 0;
 	if(j2 >= num_cols)
@@ -96,11 +102,13 @@ convolve_rows_kernel_optimized(float *in, float *out, int num_rows, int num_cols
 	
 	j1 = j1 - x + half_width;
 	j2 = j2 - x + half_width;
-	
+	float value;
 	out[y * num_cols + x] = 0.0f;
 	for(i = i1, j = j1; j <= j2; j++, i++)
-		out[y * num_cols + x] += kernel_c[j] * in[y * num_cols + x + i];
-	//printf("%f\n", out[y * num_cols + x]);
+	{
+		value = tex2D (in_on_tex, col_number + i, row_number);
+		out[y * num_cols + x] += kernel_c[j] * value;
+	}
 	
 	return; 
 }
@@ -122,7 +130,9 @@ convolve_columns_kernel_optimized(float *in, float *out, int num_rows, int num_c
 	x = col;
 	j1 = y - half_width;
 	j2 = y + half_width;
-	
+	int row_number = 32 * blockY + threadY;
+	int col_number = 32 * blockX + threadX;
+	float value;
 	if(j1 < 0)
 		j1 = 0;
 	if(j2 >= num_rows)
@@ -135,7 +145,10 @@ convolve_columns_kernel_optimized(float *in, float *out, int num_rows, int num_c
 
 	out[y * num_cols + x] = 0.0f;
 	for (i = i1, j = j1; j <= j2; j++, i++)
-		out[y * num_cols + x] += kernel_c[j] * in[y * num_cols + x + (i * num_cols)];
+	{
+		value = tex2D (out_on_tex, col_number, row_number + i);
+		out[y * num_cols + x] += kernel_c[j] *  value;
+	}
     	return;
 }
 
