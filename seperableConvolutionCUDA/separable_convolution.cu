@@ -16,10 +16,12 @@ extern "C" float *create_kernel (float, int);
 void print_kernel (float *, int);
 void print_matrix (float *, int, int);
 
+
 /* Define the width of the convolution kernel. */
 #define HALF_WIDTH 8
 #define COEFF 10
 
+__constant__ float kernel_c[(HALF_WIDTH + 1) * 2];
 
 /* Uncomment line below to spit out debug information. */
 // #define DEBUG
@@ -37,23 +39,29 @@ compute_on_device (float *gpu_result, float *matrix_c,\
 	float* matOnDevice = NULL;
 	float* gpuResultOnDevice = NULL;
 	float* kernelOnDevice = NULL;
+    	struct timeval start, stop;	
 	
 	cudaMalloc ((void**) &matOnDevice, num_cols * num_rows * sizeof(float));
 	cudaMemcpy (matOnDevice, matrix_c, num_cols * num_rows * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMalloc ((void**) &gpuResultOnDevice, num_cols * num_rows * sizeof(float));
-	cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
-	cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
+	//cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
+	//cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
 
-	tile_size = 1;
+	cudaMemcpyToSymbol (kernel_c, kernel, (HALF_WIDTH * 2 + 1) * sizeof (float)); 	
+	tile_size = 32;
 	
 	dim3 thread_block (tile_size, tile_size, 1);
 	dim3 grid (num_rows / tile_size, num_cols / tile_size);
 	
-	convolve_rows_kernel_naive <<< grid, thread_block >>> (matOnDevice, gpuResultOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+    	gettimeofday (&start, NULL);
+	convolve_rows_kernel_optimized <<< grid, thread_block >>> (matOnDevice, gpuResultOnDevice, num_rows, num_cols, half_width);
 	cudaDeviceSynchronize();
 
-	convolve_columns_kernel_naive <<< grid, thread_block >>> (gpuResultOnDevice, matOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+	convolve_columns_kernel_optimized <<< grid, thread_block >>> (gpuResultOnDevice, matOnDevice, num_rows, num_cols, half_width);
 	cudaDeviceSynchronize();
+    	gettimeofday (&stop, NULL);
+    	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec)/(float)1000000));
 	
 	cudaMemcpy(gpu_result, matOnDevice, num_cols * num_rows * sizeof(float), cudaMemcpyDeviceToHost);
 	
@@ -71,7 +79,7 @@ main (int argc, char **argv)
         printf ("Usage: %s matrix-rows matrix-columns\n", argv[0]);
         exit (EXIT_FAILURE);
     }
-
+    struct timeval start, stop;	
     int num_rows = atoi (argv[1]);
     int num_cols = atoi (argv[2]);
 
@@ -101,8 +109,13 @@ main (int argc, char **argv)
        original contents of matrix_a.		
      */
     printf ("\nConvolving the matrix on the CPU\n");	  
+    gettimeofday (&start, NULL);
     compute_gold (matrix_a, matrix_b, gaussian_kernel, num_cols,\
                   num_rows, HALF_WIDTH);
+    gettimeofday (&stop, NULL);
+    printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec)/(float)1000000));
+
 #ifdef DEBUG	 
     print_matrix (matrix_a, num_cols, num_rows);
 #endif
