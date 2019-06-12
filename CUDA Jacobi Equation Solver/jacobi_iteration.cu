@@ -19,6 +19,8 @@
 /* Uncomment the line below if you want the code to spit out debug information. */ 
 //#define DEBUG
 
+//extern __shared__ double ssd = 0;
+
 int 
 main (int argc, char** argv) 
 {
@@ -32,7 +34,7 @@ main (int argc, char** argv)
 	matrix_t reference_x;           /* Reference solution. */ 
 	matrix_t gpu_naive_solution_x;  /* Solution computed by naive kernel. */
     matrix_t gpu_opt_solution_x;    /* Solution computed by optimized kernel. */
-	struct timeval start, stop;
+	struct timeval start, stop;	
 	/* Initialize the random number generator. */
 	srand (time (NULL));
 
@@ -58,25 +60,25 @@ main (int argc, char** argv)
     /* Compute the Jacobi solution on the CPU. */
 	printf ("Performing Jacobi iteration on the CPU\n");
     	gettimeofday (&start, NULL);
-    	compute_gold (A, reference_x, B);
+    compute_gold (A, reference_x, B);
     	gettimeofday (&stop, NULL);
 	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
-    	display_jacobi_solution (A, reference_x, B); /* Display statistics. */
+    display_jacobi_solution (A, reference_x, B); /* Display statistics. */
 	
 	/* Compute the Jacobi solution on the GPU. 
        The solutions are returned in gpu_naive_solution_x and gpu_opt_solution_x. */
-	printf ("\nPerforming Jacobi iteration on device. \n");
-	
+    printf ("\nPerforming Jacobi iteration on device. \n");
+
 	compute_on_device (A, gpu_naive_solution_x, gpu_opt_solution_x, B);
-    	display_jacobi_solution (A, gpu_naive_solution_x, B); /* Display statistics. */
-    	display_jacobi_solution (A, gpu_opt_solution_x, B); 
+    display_jacobi_solution (A, gpu_naive_solution_x, B); /* Display statistics. */
+    display_jacobi_solution (A, gpu_opt_solution_x, B); 
     
-    	free (A.elements); 
+    free (A.elements); 
 	free (B.elements); 
 	free (reference_x.elements); 
 	free (gpu_naive_solution_x.elements);
-    	free (gpu_opt_solution_x.elements);
+    free (gpu_opt_solution_x.elements);
 	
     exit (EXIT_SUCCESS);
 }
@@ -91,92 +93,97 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	unsigned int num_rows = A.num_rows;
 	unsigned int num_cols = A.num_columns;
 	struct timeval start, stop;
-	float* A_on_device;	
+	float* A_on_device;
 	float* B_on_device;
 	float* X_on_device;
+	double ssd = 0; 
+	double mse;
+	double* ssd_on_device = NULL;
 
+	matrix_t new_naive_x = allocate_matrix_on_host (MATRIX_SIZE, 1, 0);
 	float* new_naive_x_on_device;
 
-	matrix_t new_naive_x = allocate_matrix_on_host (MATRIX_SIZE, 1, 0) ;
-//	matrix_t new_naive_cuda_x = allocate_matrix_on_device (new_naive_x);
-	
 	/* Initialize current jacobi solution for the naive solution. */
 	for (i = 0; i < num_rows; i++)
         	gpu_naive_sol_x.elements[i] = B.elements[i];
-		
-//	matrix_t new_naive_cuda_x = allocate_matrix_on_device (new_naive_x);
-//	copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
-	
-	//matrix_t A_on_device = allocate_matrix_on_device(A);
+
 	cudaMalloc ((void**) &A_on_device, num_rows * num_cols * sizeof (float));
 	cudaMemcpy (A_on_device, A.elements, num_rows * num_cols * sizeof (float), cudaMemcpyHostToDevice);
-	//copy_matrix_to_device(A_on_device, A);
-	
-	//matrix_t B_on_device = allocate_matrix_on_device(B);
+
 	cudaMalloc ((void**) &B_on_device, MATRIX_SIZE * sizeof (float));
 	cudaMemcpy (B_on_device, B.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
-	//copy_matrix_to_device(B_on_device, B);
-
-//	matrix_t X_on_device = allocate_matrix_on_device(gpu_opt_sol_x);
+	
 	cudaMalloc ((void**) &X_on_device, MATRIX_SIZE * sizeof (float));
-	cudaMemcpy (X_on_device, gpu_naive_sol_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);	
-	//		copy_matrix_to_device(X_on_device, gpu_naive_sol_x);
+	cudaMemcpy (X_on_device, gpu_naive_sol_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
+
 	cudaMalloc ((void**) &new_naive_x_on_device, MATRIX_SIZE * sizeof (float));
-//	copy_matrix_to_device(A_on_device, A);
-//	copy_matrix_to_device(B_on_device, B);
-//	copy_matrix_to_device(gpu_naive_sol_x_on_device, gpu_naive_sol_x);
-//	copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
+
+	cudaMalloc ((void**) &ssd_on_device, 1 * sizeof (double));
+	cudaMemcpy (ssd_on_device, &ssd, 1 * sizeof (double), cudaMemcpyHostToDevice);
 
 	/* Perform Jacobi iteration. */
 	unsigned int done = 0;
-	double ssd, mse;
-	int size = 1;num_rows*num_cols;
-	int tile_size = 1;//THREAD_BLOCK_SIZE/4; //Thread block size is 128, so by dividing 4, it comes out to 1024 thraeds per block
+	//double mse;
+	//ssd = 0.0;
 	unsigned int num_iter = 0;
-	dim3 threads (tile_size, tile_size, 1); 
-	dim3 grid (size/tile_size, num_rows);
-
-	gettimeofday (&start, NULL);
-	while (!done){ 
-	//Activate Kernel
-	jacobi_iteration_kernel_naive<<<grid, threads>>>(A_on_device, new_naive_x_on_device, X_on_device, B_on_device, num_rows, num_cols);
-//	check_CUDA_error("Error with kernel activation");
-	cudaDeviceSynchronize();
-	//check_CUDA_error("Error with kernel activation");
-	cudaMemcpy(new_naive_x.elements, new_naive_x_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
-	//copy_matrix_from_device(new_naive_x, new_naive_x_on_device);
-//	copy_matrix_from_device(gpu_naive_sol_x, gpu_naive_sol_x_on_device);
-	//copy_matrix_to_device(gpu_naive_sol_x_on_device, gpu_naive_sol_x);
-	//copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
-
-
-	//print_matrix(new_naive_cuda_x);
-	//Check for convergence and update the unknowns.
-	ssd = 0.0;
-		for (i = 0; i < num_rows; i++){
-			ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]);
-			gpu_naive_sol_x.elements[i] = new_naive_x.elements[i];
+	int tile_size = 1;
+	dim3 threads (tile_size, THREAD_BLOCK_SIZE, 1); 
+	dim3 grid (1, num_rows);
 	
-		}
-	cudaMemcpy (X_on_device, new_naive_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
-//	copy_matrix_to_device(new_naive_x_on_device, new_naive_x);
-	num_iter++;
-	mse = sqrt (ssd);
-	printf ("Iteration: %d. MSE = %f\n", num_iter, mse);
+	int *mutex_on_device = NULL;
+	cudaMalloc ((void **) &mutex_on_device, sizeof (int));
+	cudaMemset (mutex_on_device, 0, sizeof (int));
 
-	if (mse <= THRESHOLD)
-		done = 1;
+    	gettimeofday (&start, NULL);
+	while (!done){ 
+		//Activate Kernel
+		jacobi_iteration_kernel_naive <<< grid, threads >>> (A_on_device, X_on_device, new_naive_x_on_device, B_on_device, num_rows, num_cols, ssd_on_device, mutex_on_device);
+		cudaDeviceSynchronize();
+		cudaMemcpy(new_naive_x.elements, new_naive_x_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+	
+		cudaMemcpy(gpu_naive_sol_x.elements, X_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy (&ssd, ssd_on_device, 1 * sizeof (double), cudaMemcpyDeviceToHost);
+
+		//int i;
+		//for(i = 0; i < MATRIX_SIZE; i++)
+		//	printf("%f\n", new_naive_x.elements[i]);
+
+		//Check for convergence and update the unknowns.
+		//ssd = 0.0;
+		//for (i = 0; i < num_rows; i++)
+		//{
+		//	ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]);
+		//	gpu_naive_sol_x.elements[i] = new_naive_x.elements[i];
+	
+		//}
+		//copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
+		cudaMemcpy (X_on_device, new_naive_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
+		num_iter++;
+		printf("%d\n ", ssd);
+		mse = sqrt (ssd);
+		printf("%d\n ", mse);
+		printf ("Iteration: %d. MSE = %f\n", num_iter, mse);
+		
+		if (mse <= THRESHOLD)
+			done = 1;
+		
+		ssd = 0; // Reset ssd on device
+		cudaMemcpy(&ssd, ssd_on_device, sizeof (double), cudaMemcpyDeviceToHost);	
 
 	}
-	gettimeofday (&stop, NULL);
+    	gettimeofday (&stop, NULL);
 	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
+	//gpu_naive_sol_x.elements = new_naive_x.elements;
 	//copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
  	printf ("\nConvergence achieved after %d iterations \n", num_iter);
 
-	free (new_naive_x.elements);
+	//free (new_naive_x.elements);
 	cudaFree(new_naive_x_on_device);
 
+
+	cudaFree (ssd_on_device);
+	cudaFree (mutex_on_device);
 
 	return;
 }
