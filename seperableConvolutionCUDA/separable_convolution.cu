@@ -40,16 +40,19 @@ compute_on_device (float *gpu_result, float *matrix_c,\
 	float* gpuResultOnDevice = NULL;
 	float* kernelOnDevice = NULL;
     	struct timeval start, stop;	
+    	float *matrix_c_backup = (float *) malloc (sizeof (float) * num_rows * num_cols);
+	int i;
+	for(i = 0; i < num_rows * num_cols; i++)
+	{
+		matrix_c_backup[i] = matrix_c[i];
+	}
 	
 	cudaMalloc ((void**) &matOnDevice, num_cols * num_rows * sizeof(float));
-	cudaMemcpy (matOnDevice, matrix_c, num_cols * num_rows * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy (matOnDevice, matrix_c_backup, num_cols * num_rows * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMalloc ((void**) &gpuResultOnDevice, num_cols * num_rows * sizeof(float));
-	//cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
-	//cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMalloc ((void**) &kernelOnDevice, (HALF_WIDTH * 2 + 1) * sizeof(float));
+	cudaMemcpy (kernelOnDevice, kernel, (HALF_WIDTH * 2 + 1) * sizeof(float), cudaMemcpyHostToDevice);
 	
-	cudaChannelFormatDesc desc = cudaCreateChannelDesc<float> ();
-	cudaBindTexture2D (NULL, in_on_tex, matOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
-	cudaBindTexture2D (NULL, out_on_tex, gpuResultOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
 
 	cudaMemcpyToSymbol (kernel_c, kernel, (HALF_WIDTH * 2 + 1) * sizeof (float)); 	
 	tile_size = 32;
@@ -57,6 +60,25 @@ compute_on_device (float *gpu_result, float *matrix_c,\
 	dim3 thread_block (tile_size, tile_size, 1);
 	dim3 grid (num_rows / tile_size, num_cols / tile_size);
 	
+	//NAIVE
+
+    	gettimeofday (&start, NULL);
+	convolve_rows_kernel_naive <<< grid, thread_block >>> (matOnDevice, gpuResultOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+	cudaDeviceSynchronize();
+
+	convolve_columns_kernel_naive <<< grid, thread_block >>> (gpuResultOnDevice, matOnDevice, num_rows, num_cols, kernelOnDevice, half_width);
+	cudaDeviceSynchronize();
+    	gettimeofday (&stop, NULL);
+    	printf ("Execution time (NAIVE) = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec)/(float)1000000));
+
+
+	//OPTIMIZED
+	cudaMemcpy (matOnDevice, matrix_c, num_cols * num_rows * sizeof(float), cudaMemcpyHostToDevice);
+	cudaChannelFormatDesc desc = cudaCreateChannelDesc<float> ();
+	cudaBindTexture2D (NULL, in_on_tex, matOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
+	cudaBindTexture2D (NULL, out_on_tex, gpuResultOnDevice, desc, num_cols, num_rows, num_cols * sizeof (float));
+
     	gettimeofday (&start, NULL);
 	convolve_rows_kernel_optimized <<< grid, thread_block >>> (matOnDevice, gpuResultOnDevice, num_rows, num_cols, half_width);
 	cudaDeviceSynchronize();
@@ -64,7 +86,7 @@ compute_on_device (float *gpu_result, float *matrix_c,\
 	convolve_columns_kernel_optimized <<< grid, thread_block >>> (gpuResultOnDevice, matOnDevice, num_rows, num_cols, half_width);
 	cudaDeviceSynchronize();
     	gettimeofday (&stop, NULL);
-    	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+    	printf ("Execution time (OPTIMIZED) = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
 	
 	cudaUnbindTexture (in_on_tex);
