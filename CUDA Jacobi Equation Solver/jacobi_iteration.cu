@@ -12,6 +12,9 @@
 #include <math.h>
 #include <cuda_runtime.h>
 #include "jacobi_iteration.h"
+//__constant__ float A_c[MATRIX_SIZE * MATRIX_SIZE];
+__constant__ float B_c[MATRIX_SIZE];
+
 
 /* Include the kernel code. */
 #include "jacobi_iteration_kernel.cu"
@@ -19,7 +22,6 @@
 /* Uncomment the line below if you want the code to spit out debug information. */ 
 //#define DEBUG
 
-//extern __shared__ double ssd = 0;
 
 int 
 main (int argc, char** argv) 
@@ -96,20 +98,21 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	float* A_on_device;
 	float* B_on_device;
 	float* X_on_device;
-	double ssd = 0; 
-	double mse;
-	double* ssd_on_device = NULL;
 
+	matrix_t X_backup = allocate_matrix_on_host (MATRIX_SIZE, MATRIX_SIZE, 0);
 	matrix_t new_naive_x = allocate_matrix_on_host (MATRIX_SIZE, 1, 0);
 	float* new_naive_x_on_device;
 
 	/* Initialize current jacobi solution for the naive solution. */
 	for (i = 0; i < num_rows; i++)
+	{
         	gpu_naive_sol_x.elements[i] = B.elements[i];
+        	X_backup.elements[i] = B.elements[i];
+	}
 
 	cudaMalloc ((void**) &A_on_device, num_rows * num_cols * sizeof (float));
 	cudaMemcpy (A_on_device, A.elements, num_rows * num_cols * sizeof (float), cudaMemcpyHostToDevice);
-
+//
 	cudaMalloc ((void**) &B_on_device, MATRIX_SIZE * sizeof (float));
 	cudaMemcpy (B_on_device, B.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
 	
@@ -117,73 +120,73 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	cudaMemcpy (X_on_device, gpu_naive_sol_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
 
 	cudaMalloc ((void**) &new_naive_x_on_device, MATRIX_SIZE * sizeof (float));
-
-	cudaMalloc ((void**) &ssd_on_device, 1 * sizeof (double));
-	cudaMemcpy (ssd_on_device, &ssd, 1 * sizeof (double), cudaMemcpyHostToDevice);
+	
+	cudaMemcpyToSymbol (B_c, B.elements, MATRIX_SIZE * sizeof (float));
 
 	/* Perform Jacobi iteration. */
 	unsigned int done = 0;
-	//double mse;
-	//ssd = 0.0;
+	double ssd, mse;
 	unsigned int num_iter = 0;
 	int tile_size = 1;
-	dim3 threads (tile_size, THREAD_BLOCK_SIZE, 1); 
-	dim3 grid (1, num_rows);
-	
-	int *mutex_on_device = NULL;
-	cudaMalloc ((void **) &mutex_on_device, sizeof (int));
-	cudaMemset (mutex_on_device, 0, sizeof (int));
+	dim3 threads (tile_size, num_rows, 1); 
+	dim3 grid (1, 1);
 
+	// NAIVE	
     	gettimeofday (&start, NULL);
 	while (!done){ 
-		//Activate Kernel
-		jacobi_iteration_kernel_naive <<< grid, threads >>> (A_on_device, X_on_device, new_naive_x_on_device, B_on_device, num_rows, num_cols, ssd_on_device, mutex_on_device);
+		jacobi_iteration_kernel_naive <<< grid, threads >>> (A_on_device, X_on_device, new_naive_x_on_device, B_on_device, num_rows, num_cols);
 		cudaDeviceSynchronize();
 		cudaMemcpy(new_naive_x.elements, new_naive_x_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+		ssd = 0.0;
+		for (i = 0; i < num_rows; i++)
+		{
+			ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]);
+			gpu_naive_sol_x.elements[i] = new_naive_x.elements[i];
 	
-		cudaMemcpy(gpu_naive_sol_x.elements, X_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
-		cudaMemcpy (&ssd, ssd_on_device, 1 * sizeof (double), cudaMemcpyDeviceToHost);
-
-		//int i;
-		//for(i = 0; i < MATRIX_SIZE; i++)
-		//	printf("%f\n", new_naive_x.elements[i]);
-
-		//Check for convergence and update the unknowns.
-		//ssd = 0.0;
-		//for (i = 0; i < num_rows; i++)
-		//{
-		//	ssd += (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]) * (new_naive_x.elements[i] - gpu_naive_sol_x.elements[i]);
-		//	gpu_naive_sol_x.elements[i] = new_naive_x.elements[i];
-	
-		//}
-		//copy_matrix_to_device(new_naive_cuda_x, new_naive_x);
+		}
 		cudaMemcpy (X_on_device, new_naive_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
 		num_iter++;
-		printf("%d\n ", ssd);
 		mse = sqrt (ssd);
-		printf("%d\n ", mse);
-		printf ("Iteration: %d. MSE = %f\n", num_iter, mse);
-		
+
 		if (mse <= THRESHOLD)
 			done = 1;
 		
-		ssd = 0; // Reset ssd on device
-		cudaMemcpy(&ssd, ssd_on_device, sizeof (double), cudaMemcpyDeviceToHost);	
+	}
+    	gettimeofday (&stop, NULL);
+	printf ("Execution time (NAIVE) = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+                (stop.tv_usec - start.tv_usec)/(float)1000000));
+ 	printf ("Convergence achieved (NAIVE) after %d iterations \n\n", num_iter);
+	num_iter = 0;
+	done = 0;
+	double* ssd_on_device;
+	double ssd_on_host;
+	cudaMalloc((void**) &ssd_on_device, sizeof(double));
+	cudaChannelFormatDesc desc = cudaCreateChannelDesc<float> ();
+	cudaBindTexture2D (NULL, A_on_tex, A_on_device, desc, num_cols, num_rows, num_cols * sizeof (float));
+
+	cudaMemcpy (X_on_device, X_backup.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
+    	gettimeofday (&start, NULL);
+	while (!done){ 
+		//Activate Kernel
+		jacobi_iteration_kernel_optimized <<< grid, threads >>> (A_on_device, X_on_device, new_naive_x_on_device, num_rows, num_cols, num_iter, ssd_on_device);
+		cudaDeviceSynchronize();
+		cudaMemcpy(new_naive_x.elements, new_naive_x_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&ssd_on_host, ssd_on_device, sizeof(double), cudaMemcpyDeviceToHost);
+		cudaMemcpy (X_on_device, new_naive_x.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
+		num_iter++;
+		mse = sqrt (ssd_on_host);
+		if (mse <= THRESHOLD)
+			done = 1;
 
 	}
     	gettimeofday (&stop, NULL);
-	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
+	printf ("Execution time (OPTIMIZED) = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
-	//gpu_naive_sol_x.elements = new_naive_x.elements;
-	//copy_matrix_from_device(new_naive_x, new_naive_cuda_x);
- 	printf ("\nConvergence achieved after %d iterations \n", num_iter);
+ 	printf ("Convergence achieved (OPTIMIZED) after %d iterations \n\n", num_iter);
 
-	//free (new_naive_x.elements);
 	cudaFree(new_naive_x_on_device);
+	cudaUnbindTexture (A_on_tex);
 
-
-	cudaFree (ssd_on_device);
-	cudaFree (mutex_on_device);
 
 	return;
 }
