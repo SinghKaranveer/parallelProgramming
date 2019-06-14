@@ -62,7 +62,7 @@ main (int argc, char** argv)
     /* Compute the Jacobi solution on the CPU. */
 	printf ("Performing Jacobi iteration on the CPU\n");
     	gettimeofday (&start, NULL);
-    compute_gold (A, reference_x, B);
+    //compute_gold (A, reference_x, B);
     	gettimeofday (&stop, NULL);
 	printf ("Execution time = %fs\n", (float)(stop.tv_sec - start.tv_sec +\
                 (stop.tv_usec - start.tv_usec)/(float)1000000));
@@ -128,8 +128,8 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	double ssd, mse;
 	unsigned int num_iter = 0;
 	int tile_size = 1;
-	dim3 threads (tile_size, num_rows, 1); 
-	dim3 grid (1, 1);
+	dim3 threads (tile_size, tile_size, 1); 
+	dim3 grid (1, num_rows);
 
 	// NAIVE	
     	gettimeofday (&start, NULL);
@@ -165,10 +165,12 @@ compute_on_device (const matrix_t A, matrix_t gpu_naive_sol_x, matrix_t gpu_opt_
 	cudaBindTexture2D (NULL, A_on_tex, A_on_device, desc, num_cols, num_rows, num_cols * sizeof (float));
 
 	cudaMemcpy (X_on_device, X_backup.elements, MATRIX_SIZE * sizeof (float), cudaMemcpyHostToDevice);
+	dim3 threads_opt (tile_size, num_rows, 1); 
+	dim3 grid_opt (1, 1);
     	gettimeofday (&start, NULL);
 	while (!done){ 
 		//Activate Kernel
-		jacobi_iteration_kernel_optimized <<< grid, threads >>> (A_on_device, X_on_device, new_naive_x_on_device, num_rows, num_cols, num_iter, ssd_on_device);
+		jacobi_iteration_kernel_optimized <<< grid_opt, threads_opt >>> (A_on_device, X_on_device, new_naive_x_on_device, num_rows, num_cols, num_iter, ssd_on_device);
 		cudaDeviceSynchronize();
 		cudaMemcpy(new_naive_x.elements, new_naive_x_on_device, MATRIX_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
 		cudaMemcpy(&ssd_on_host, ssd_on_device, sizeof(double), cudaMemcpyDeviceToHost);
